@@ -15,6 +15,7 @@ $copilotFile = Join-Path $repoRoot '.github/copilot-instructions.md'
 $cursorFile = Join-Path $repoRoot '.cursor/rules/specify-rules.mdc'
 $qwenFile = Join-Path $repoRoot 'QWEN.md'
 $agentsFile = Join-Path $repoRoot 'AGENTS.md'
+$windsurfFile = Join-Path $repoRoot '.windsurf/rules/specify-rules.md'
 
 Write-Output "=== Updating agent context files for feature $currentBranch ==="
 
@@ -65,7 +66,7 @@ function Update-AgentFile($targetFile, $agentName) {
     }
     $content = [regex]::Replace($content, 'Last updated: \d{4}-\d{2}-\d{2}', "Last updated: $(Get-Date -Format 'yyyy-MM-dd')")
     $content | Set-Content $targetFile -Encoding UTF8
-    Write-Output "✅ $agentName context file updated successfully"
+    Write-Output "✓ $agentName context file updated successfully"
 }
 
 switch ($AgentType) {
@@ -75,6 +76,8 @@ switch ($AgentType) {
     'cursor' { Update-AgentFile $cursorFile 'Cursor IDE' }
     'qwen' { Update-AgentFile $qwenFile 'Qwen Code' }
     'opencode' { Update-AgentFile $agentsFile 'opencode' }
+    'windsurf' { Update-AgentFile $windsurfFile 'Windsurf' }
+    'codex'    { Update-AgentFile $agentsFile 'Codex CLI' }
     '' {
         foreach ($pair in @(
             @{file=$claudeFile; name='Claude Code'},
@@ -82,16 +85,18 @@ switch ($AgentType) {
             @{file=$copilotFile; name='GitHub Copilot'},
             @{file=$cursorFile; name='Cursor IDE'},
             @{file=$qwenFile; name='Qwen Code'},
-            @{file=$agentsFile; name='opencode'}
+            @{file=$agentsFile; name='opencode'},
+            @{file=$windsurfFile; name='Windsurf'},
+            @{file=$agentsFile; name='Codex CLI'}
         )) {
             if (Test-Path $pair.file) { Update-AgentFile $pair.file $pair.name }
         }
-        if (-not (Test-Path $claudeFile) -and -not (Test-Path $geminiFile) -and -not (Test-Path $copilotFile) -and -not (Test-Path $cursorFile) -and -not (Test-Path $qwenFile) -and -not (Test-Path $agentsFile)) {
+        if (-not (Test-Path $claudeFile) -and -not (Test-Path $geminiFile) -and -not (Test-Path $copilotFile) -and -not (Test-Path $cursorFile) -and -not (Test-Path $qwenFile) -and -not (Test-Path $agentsFile) -and -not (Test-Path $windsurfFile)) {
             Write-Output 'No agent context files found. Creating Claude Code context file by default.'
             Update-AgentFile $claudeFile 'Claude Code'
         }
     }
-    Default { Write-Error "ERROR: Unknown agent type '$AgentType'. Use: claude, gemini, copilot, cursor, qwen, opencode or leave empty for all."; exit 1 }
+    Default { Write-Error "ERROR: Unknown agent type '$AgentType'. Use: claude, gemini, copilot, cursor, qwen, opencode, windsurf, codex or leave empty for all."; exit 1 }
 }
 
 Write-Output ''
@@ -101,4 +106,4 @@ if ($newFramework) { Write-Output "- Added framework: $newFramework" }
 if ($newDb -and $newDb -ne 'N/A') { Write-Output "- Added database: $newDb" }
 
 Write-Output ''
-Write-Output 'Usage: ./update-agent-context.ps1 [claude|gemini|copilot|cursor|qwen|opencode]'
+Write-Output 'Usage: ./update-agent-context.ps1 [claude|gemini|copilot|cursor|qwen|opencode|windsurf|codex]'
