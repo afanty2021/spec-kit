@@ -1,9 +1,20 @@
+<docs>
 # CLI命令参考
 
 <cite>
 **本文档中引用的文件**  
-- [__init__.py](file://src/specify_cli/__init__.py)
+- [__init__.py](file://src/specify_cli/__init__.py) - *更新了对新AI代理的支持*
+- [AGENTS.md](file://AGENTS.md) - *新增了对Windsurf和opencode等AI代理的说明*
+- [README.md](file://README.md) - *更新了CLI参考文档*
 </cite>
+
+## 更新摘要
+**已做更改**
+- 根据最新代码变更，更新了`init`和`check`命令的参数与选项描述
+- 新增了对`codex`和`windsurf` AI助手的支持说明
+- 修正了脚本类型选择逻辑的文档描述
+- 更新了使用示例以反映最新的命令行选项
+- 增强了错误处理机制的文档说明
 
 ## 目录
 1. [简介](#简介)
@@ -45,7 +56,7 @@ J --> L[*.ps1]
 `specify_cli` 的核心功能由 `init` 和 `check` 两个命令驱动，它们依赖于一系列内部函数和类来完成具体任务，如下载模板、检查工具、处理文件权限等。
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L1029)
+- [__init__.py](file://src/specify_cli/__init__.py#L746-L1000)
 
 ## 架构概述
 该 CLI 工具采用模块化设计，`Typer` 负责命令行解析和路由，`Rich` 提供高级终端渲染能力，`httpx` 处理网络请求，`StepTracker` 类则实现了类似 Claude Code 的树状进度追踪系统。
@@ -110,10 +121,10 @@ Init->>User : 显示“下一步”操作指南
 ```
 
 **Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
+- [__init__.py](file://src/specify_cli/__init__.py#L746-L1000)
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
+- [__init__.py](file://src/specify_cli/__init__.py#L746-L1000)
 
 #### 参数与选项
 `init` 命令提供了丰富的参数和选项来定制初始化过程。
@@ -121,13 +132,14 @@ Init->>User : 显示“下一步”操作指南
 | 参数/选项 | 类型 | 描述 | 默认值 |
 | :--- | :--- | :--- | :--- |
 | `project_name` | 参数 | 新项目目录的名称 | 无 |
-| `--ai` | 选项 | 指定使用的AI助手（claude, gemini, copilot等） | 交互式选择 |
+| `--ai` | 选项 | 指定使用的AI助手（claude, gemini, copilot, cursor, qwen, opencode, codex, windsurf） | 交互式选择 |
 | `--script` | 选项 | 指定脚本类型（sh 或 ps） | 根据操作系统自动选择 |
 | `--ignore-agent-tools` | 选项 | 跳过对AI代理工具的检查 | False |
 | `--no-git` | 选项 | 跳过Git仓库初始化 | False |
 | `--here` | 选项 | 在当前目录初始化项目 | False |
 | `--skip-tls` | 选项 | 跳过SSL/TLS验证（不推荐） | False |
 | `--debug` | 选项 | 显示详细的诊断输出 | False |
+| `--github-token` | 选项 | 用于API请求的GitHub令牌 | 无 |
 
 #### 使用示例
 ```bash
@@ -139,6 +151,12 @@ specify init --here --no-git
 
 # 在名为"mobile-app"的目录中初始化项目，使用Gemini
 specify init mobile-app --ai gemini --script sh
+
+# 使用Codex CLI初始化项目
+specify init my-project --ai codex
+
+# 使用Windsurf IDE初始化项目
+specify init my-project --ai windsurf
 ```
 
 ### check 命令分析
@@ -159,16 +177,18 @@ CheckGemini --> CheckQwen["检查qwen"]
 CheckQwen --> CheckCode["检查VS Code"]
 CheckCode --> CheckCursor["检查cursor-agent"]
 CheckCursor --> CheckOpencode["检查opencode"]
-CheckOpencode --> RenderTree["渲染最终的树状结果"]
+CheckOpencode --> CheckCodex["检查codex"]
+CheckCodex --> CheckWindsurf["检查windsurf"]
+CheckWindsurf --> RenderTree["渲染最终的树状结果"]
 RenderTree --> PrintSummary["打印总结和建议"]
 PrintSummary --> End([命令结束])
 ```
 
 **Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L990-L1029)
+- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L990-L1029)
+- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
 
 #### 返回值
 `check` 命令本身没有返回值，但它会通过终端输出一个详细的树状报告，明确标示每个工具的状态（完成、错误、跳过）。如果所有检查都通过，它会输出绿色的“Specify CLI is ready to use!”提示。
@@ -193,70 +213,4 @@ app --> init : 注册
 app --> check : 注册
 ```
 
-**Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L290-L296)
-
-#### Rich 库美化输出
-Rich 库被广泛用于提升用户体验。`Console` 用于打印彩色文本，`Panel` 用于创建带边框的文本框，`Progress` 用于显示下载进度条，`Tree` 用于渲染 `StepTracker` 的树状结构。
-
-**Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py)
-
-## 依赖分析
-`specify_cli` 依赖于多个外部库和系统工具。
-
-```mermaid
-graph TD
-A[specify_cli] --> B[typer]
-A --> C[rich]
-A --> D[httpx]
-A --> E[platformdirs]
-A --> F[readchar]
-A --> G[truststore]
-A --> H[git]
-A --> I[claude]
-A --> J[gemini]
-A --> K[qwen]
-A --> L[code]
-A --> M[cursor-agent]
-A --> N[opencode]
-B --> O[Python]
-C --> O
-D --> O
-E --> O
-F --> O
-G --> O
-H --> P[操作系统]
-I --> P
-J --> P
-K --> P
-L --> P
-M --> P
-N --> P
-```
-
-**Diagram sources**
-- [pyproject.toml](file://pyproject.toml)
-- [__init__.py](file://src/specify_cli/__init__.py)
-
-**Section sources**
-- [pyproject.toml](file://pyproject.toml)
-- [__init__.py](file://src/specify_cli/__init__.py)
-
-## 性能考虑
-`init` 命令的性能主要受网络下载速度影响。工具通过 `httpx` 的流式下载和 `Progress` 组件提供了实时的下载进度，避免了长时间无响应的用户体验。对于大型模板，下载和解压过程是主要的耗时环节。
-
-## 故障排除指南
-当命令执行失败时，CLI 会提供清晰的错误信息和调试建议。
-
-**Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py)
-
-### 常见错误
-- **网络请求失败**：检查网络连接，或使用 `--skip-tls` 选项（不推荐）。在 `init` 命令中启用 `--debug` 可以查看详细的 HTTP 错误。
-- **工具未找到**：确保所需的工具（如 `git`, `claude`）已安装并添加到系统 `PATH` 环境变量中。`check` 命令可以帮助诊断此问题。
-- **权限错误**：在类 Unix 系统上，`ensure_executable_scripts` 函数可能会因权限不足而失败。确保运行 CLI 的用户对项目目录有写权限。
-- **目录已存在**：如果指定的项目目录已存在，`init` 命令会报错。可以使用 `--here` 选项在当前目录初始化，或手动删除现有目录。
-
-## 结论
-`specify_cli` 模块是一个功能完备、用户体验优秀的命令行工具。它通过 `init` 和 `check` 命令，为“规范驱动开发”项目提供了强大的初始化和诊断能力。其代码结构清晰，利用 Typer 和 Rich 等现代 Python 库，实现了高效、美观且健壮的 CLI。开发者可以轻松地理解其数据流和控制流，并根据需要进行扩展或定制。
+**

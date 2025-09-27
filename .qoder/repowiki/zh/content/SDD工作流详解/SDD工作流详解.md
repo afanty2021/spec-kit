@@ -1,3 +1,4 @@
+<docs>
 # SDD工作流详解
 
 <cite>
@@ -11,7 +12,17 @@
 - [tasks.md](file://templates/commands/tasks.md)
 - [create-new-feature.sh](file://scripts/bash/create-new-feature.sh)
 - [setup-plan.sh](file://scripts/bash/setup-plan.sh)
+- [update-agent-context.sh](file://scripts/bash/update-agent-context.sh)
+- [update-agent-context.ps1](file://scripts/powershell/update-agent-context.ps1)
 </cite>
+
+## 更新摘要
+**变更内容**
+- 全面更新“/plan命令详解”章节，整合来自`_plan 命令详解.md`的详细信息。
+- 新增关于技术上下文填充、宪法合规性检查、研究与设计阶段的深度解析。
+- 引入AI助手集成和冲突处理机制等新概念。
+- 更新相关脚本（`setup-plan.sh`, `update-agent-context.sh`）的分析和来源。
+- 优化流程图以更准确地反映执行流程。
 
 ## 目录
 1. [引言](#引言)
@@ -77,11 +88,14 @@ style D fill:#fff3e0,stroke:#fb8c00
 ### 输入与处理
 - **输入**：来自 `/specs/[###-feature-name]/spec.md` 的功能规范。
 - **处理流程**：
-  1. 加载 `plan-template.md` 模板和 `constitution.md` 宪法文件。
-  2. 分析规范，提取技术上下文（语言、依赖、平台等）。
-  3. 执行“宪法检查”，确保设计符合项目的核心原则（如TDD、库优先等）。
-  4. 执行**第0阶段（研究）**：生成 `research.md`，解决规范中的所有 `[NEEDS CLARIFICATION]` 问题。
-  5. 执行**第1阶段（设计）**：生成 `data-model.md`、API契约（`contracts/`）和 `quickstart.md`。
+  1. 运行 `setup-plan.sh/.ps1` 脚本，验证功能分支并初始化环境，获取 `FEATURE_SPEC`, `IMPL_PLAN` 等路径。
+  2. 加载 `plan-template.md` 模板和 `constitution.md` 宪法文件。
+  3. 分析规范，提取并填充“技术上下文”（语言、依赖、平台等），未决项标记为“NEEDS CLARIFICATION”。
+  4. 执行“宪法检查”，确保设计符合项目的核心原则（如TDD、库优先等）。若违规，需在“复杂度跟踪”中记录理由。
+  5. 执行**第0阶段（研究）**：生成 `research.md`，解决所有“NEEDS CLARIFICATION”问题。
+  6. 执行**第1阶段（设计）**：生成 `data-model.md`、API契约（`contracts/`）、合同测试和 `quickstart.md`。
+  7. 再次执行“宪法检查”，确保最终设计合规。
+  8. 调用 `update-agent-context.sh/.ps1` 脚本，将新技术栈增量更新至AI助手上下文文件（如 `CLAUDE.md`）。
 
 ### 输出与质量控制
 - **输出**：`plan.md` 文件，包含完整的实现计划、研究结果、数据模型和API契约。
@@ -89,12 +103,16 @@ style D fill:#fff3e0,stroke:#fb8c00
   - 在开始研究前，必须通过初始宪法检查。
   - 在设计完成后，必须再次通过宪法检查。
   - 所有研究问题必须在进入下一阶段前解决。
+  - “进度跟踪”表用于监控各阶段完成状态。
 
 **Section sources**
 - [plan.md](file://templates/commands/plan.md#L1-L39)
 - [plan-template.md](file://templates/plan-template.md#L1-L217)
 - [constitution.md](file://memory/constitution.md#L1-L49)
 - [setup-plan.sh](file://scripts/bash/setup-plan.sh#L1-L17)
+- [setup-plan.ps1](file://scripts/powershell/setup-plan.ps1#L1-L21)
+- [update-agent-context.sh](file://scripts/bash/update-agent-context.sh#L1-L66)
+- [update-agent-context.ps1](file://scripts/powershell/update-agent-context.ps1#L1-L103)
 
 ## /tasks命令详解
 `/tasks` 命令是SDD工作流的终点，负责将设计文档转化为具体的、可并行执行的任务列表。
@@ -171,68 +189,4 @@ Template <|-- TasksTemplate
 
 ### 质量控制的实现
 质量控制通过以下方式实现：
-1. **结构强制**：模板的固定章节（如“用户场景”、“功能需求”）确保了信息的完整性。
-2. **自动化检查**：每个模板都包含一个“检查清单”，AI在生成输出时必须模拟执行这些检查。
-3. **错误处理**：模板中的“执行流程”明确指出了错误条件（如“未找到规范”）和相应的错误信息，防止AI生成无效输出。
-
-## 端到端使用案例
-以下是一个从模糊想法到可执行任务的完整示例。
-
-### 场景：用户提出“创建一个登录系统”
-1. **/specify 阶段**：
-   - 用户输入：`/specify create a login system`
-   - AI生成 `spec.md`，并在需求中包含：
-     - `FR-001: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]`
-     - `FR-002: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]`
-   - 输出：一个带有明确问题标记的、高质量的规范。
-
-2. **/plan 阶段**：
-   - AI加载 `spec.md` 和 `constitution.md`。
-   - “宪法检查”可能要求“所有新功能必须有契约测试”。
-   - AI生成 `research.md` 来研究“OAuth 2.0 vs. JWT”。
-   - AI生成 `data-model.md` 定义 `User` 实体和 `Session` 实体。
-   - AI生成 `contracts/` 中的 `POST /api/login` OpenAPI规范。
-
-3. **/tasks 阶段**：
-   - AI加载 `plan.md`、`data-model.md` 和 `contracts/`。
-   - AI生成 `tasks.md`，包含：
-     - `T001 [P] Create User model in src/models/user.py`
-     - `T002 [P] Contract test POST /api/login in tests/contract/test_login.py`
-     - `T003 [P] Research OAuth 2.0 best practices`
-     - `T004 Implement POST /api/login endpoint`
-   - 任务按TDD顺序排列，`[P]` 标记表示可并行执行。
-
-**Section sources**
-- [spec-template.md](file://templates/spec-template.md#L1-L116)
-- [plan-template.md](file://templates/plan-template.md#L1-L217)
-- [tasks-template.md](file://templates/tasks-template.md#L1-L126)
-
-## 阶段间数据传递机制
-SDD工作流的各个阶段通过文件系统和结构化数据进行无缝衔接。
-
-### 数据流图
-```mermaid
-flowchart LR
-A["/specify\n(spec.md)"] --> |Input| B["/plan\n(research.md, data-model.md, contracts/)"]
-B --> |Input| C["/tasks\n(tasks.md)"]
-subgraph "输出"
-A
-B
-C
-end
-style A fill:#e1f5fe,stroke:#039be5
-style B fill:#e8f5e8,stroke:#43a047
-style C fill:#fff3e0,stroke:#fb8c00
-```
-
-**Diagram sources**
-- [specify.md](file://templates/commands/specify.md)
-- [plan.md](file://templates/commands/plan.md)
-- [tasks.md](file://templates/commands/tasks.md)
-
-### 传递机制详解
-- **/specify → /plan**：`/plan` 命令的输入是 `spec.md` 文件的路径。`plan-template.md` 的“执行流程”第一步就是“加载功能规范”。规范中的 `[NEEDS CLARIFICATION]` 标记直接驱动了 `research.md` 的内容。
-- **/plan → /tasks**：`/tasks` 命令的输入是 `plan.md` 和其他设计文档的路径。`tasks-template.md` 明确规定了如何从 `data-model.md` 生成模型任务，从 `contracts/` 生成测试任务。技术上下文（如语言、框架）从 `plan.md` 传递，用于生成正确的设置任务。
-
-## 结论
-规范驱动开发（SDD）通过 `/specify`、`/plan` 和 `/tasks` 三个核心命令，构建了一个严谨、可重复的开发工作流。其核心创新在于利用Markdown模板作为“模板方法”，将AI的创造性输出约束在一个可预测、高质量的框架内。通过强制性的结构、自动化的检查清单和清晰的阶段划分，SDD有效解决了AI开发中常见的模糊性、不一致性和质量波动问题，为实现可靠、高效的AI辅助开发提供了一套强大的方法论。
+1. **结构强制**：模板的固定章节（如“

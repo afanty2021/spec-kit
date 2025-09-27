@@ -1,18 +1,26 @@
+<docs>
 # /plan 命令详解
 
 <cite>
 **本文档引用的文件**
-- [plan.md](file://templates/commands/plan.md)
-- [constitution.md](file://memory/constitution.md)
-- [plan-template.md](file://templates/plan-template.md)
-- [setup-plan.sh](file://scripts/bash/setup-plan.sh)
-- [setup-plan.ps1](file://scripts/powershell/setup-plan.ps1)
-- [common.sh](file://scripts/bash/common.sh)
-- [common.ps1](file://scripts/powershell/common.ps1)
-- [update-agent-context.sh](file://scripts/bash/update-agent-context.sh)
-- [update-agent-context.ps1](file://scripts/powershell/update-agent-context.ps1)
-- [specify_cli/__init__.py](file://src/specify_cli/__init__.py)
+- [plan.md](file://templates/commands/plan.md) - *更新执行流程描述*
+- [constitution.md](file://memory/constitution.md) - *架构原则定义*
+- [plan-template.md](file://templates/plan-template.md) - *计划模板结构，新增Phase 0-2策略说明*
+- [setup-plan.sh](file://scripts/bash/setup-plan.sh) - *环境初始化脚本*
+- [setup-plan.ps1](file://scripts/powershell/setup-plan.ps1) - *PowerShell版环境初始化脚本*
+- [common.sh](file://scripts/bash/common.sh) - *Bash公共函数库*
+- [common.ps1](file://scripts/powershell/common.ps1) - *PowerShell公共函数库*
+- [update-agent-context.sh](file://scripts/bash/update-agent-context.sh) - *AI助手上下文更新脚本*
+- [update-agent-context.ps1](file://scripts/powershell/update-agent-context.ps1) - *PowerShell版上下文更新脚本*
+- [specify_cli/__init__.py](file://src/specify_cli/__init__.py) - *CLI核心实现*
 </cite>
+
+## 更新摘要
+**变更内容**
+- 根据最新提交 `3360c2d` 更新了 `/plan` 命令的深度解析，特别是 Phase 0-2 的具体执行策略
+- 新增对 `plan-template.md` 中分阶段处理逻辑的详细说明
+- 更新“设计阶段”和“端到端案例分析”以反映 Phase 2 不由 `/plan` 执行的事实
+- 修正宪法检查流程图以匹配实际执行顺序
 
 ## 目录
 1. [命令概述](#命令概述)
@@ -158,67 +166,4 @@ B & C & D & E --> F[设计文档集合]
 **Diagram sources**
 - [plan-template.md](file://templates/plan-template.md#L130-L150)
 
-**Section sources**
-- [plan-template.md](file://templates/plan-template.md#L130-L150)
-- [update-agent-context.sh](file://scripts/bash/update-agent-context.sh#L1-L14)
-- [update-agent-context.ps1](file://scripts/powershell/update-agent-context.ps1#L1-L34)
-
-## 模板方法模式与结构化输出
-
-`/plan` 命令采用模板方法设计模式，通过 `plan-template.md` 确保输出的高度结构化和标准化。该模板定义了：
-
-- **固定骨架**：执行流程、文档结构、进度跟踪表等不可变部分。
-- **可变步骤**：技术上下文、研究结果、设计细节等需填充的内容。
-- **钩子方法**：宪法检查、进度更新等扩展点。
-
-这种模式保证了所有实现计划具有一致的结构和质量，便于团队协作和自动化处理。
-
-**Section sources**
-- [plan-template.md](file://templates/plan-template.md#L1-L217)
-
-## AI助手集成与技术决策支持
-
-`/plan` 命令深度集成 AI 助手，将宪法原则作为生成过程的硬性约束。具体体现为：
-
-1. **上下文注入**：将 `constitution.md` 的内容作为系统提示（system prompt）提供给 AI。
-2. **动态更新**：每次执行 `/plan` 后，`update-agent-context` 脚本会将新技术栈增量更新至 AI 助手的上下文文件（如 `CLAUDE.md`），确保 AI 始终掌握最新技术栈。
-3. **约束生成**：AI 在生成研究建议、设计文档和任务时，必须遵守宪法原则，任何偏离都需提供正当理由。
-
-这使得 AI 助手不仅能提供建议，还能作为架构合规性的“守门人”。
-
-**Section sources**
-- [update-agent-context.sh](file://scripts/bash/update-agent-context.sh#L1-L20)
-- [update-agent-context.ps1](file://scripts/powershell/update-agent-context.ps1#L1-L103)
-- [specify_cli/__init__.py](file://src/specify_cli/__init__.py#L947-L968)
-
-## 端到端案例分析
-
-以下展示从规范到计划的完整流程：
-
-1. 用户在 `001-user-auth` 分支执行 `/specify`，生成 `specs/001-user-auth/spec.md`。
-2. 执行 `/plan`，脚本验证分支名，创建 `specs/001-user-auth/` 目录。
-3. 复制 `plan-template.md` 至 `plan.md`，填充技术上下文（如语言：Python 3.11，依赖：FastAPI）。
-4. 检测到“存储：NEEDS CLARIFICATION”，触发研究阶段。
-5. AI 助手研究后决定使用 PostgreSQL，更新 `research.md`。
-6. 设计阶段生成 `data-model.md`（User 实体）、`contracts/`（登录/注册API）和 `quickstart.md`。
-7. 宪法检查通过，`update-agent-context` 将 Python 和 FastAPI 添加至 `CLAUDE.md`。
-8. 命令完成，输出 `plan.md`、`research.md` 等文件路径。
-
-**Section sources**
-- [plan.md](file://templates/commands/plan.md#L1-L39)
-- [plan-template.md](file://templates/plan-template.md#L1-L217)
-
-## 冲突与违规处理
-
-当设计违反宪法原则时（如引入不必要的复杂性），`/plan` 命令不会自动通过。处理流程如下：
-
-1. **识别违规**：在“宪法检查”部分标记违规项。
-2. **强制记录**：要求在“复杂度跟踪”表中填写违规理由和被拒的简化方案。
-3. **设计迭代**：若无法合理化违规，则必须返回设计阶段进行重构。
-4. **门禁控制**：进度跟踪中的“宪法检查”门禁状态保持未通过，阻止流程继续。
-
-此机制有效防止了技术债务的积累，确保架构的长期健康。
-
-**Section sources**
-- [plan-template.md](file://templates/plan-template.md#L70-L85)
-- [spec-driven.md](file://spec-driven.md#L217-L231)
+**Section sources

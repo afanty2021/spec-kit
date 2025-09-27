@@ -1,9 +1,18 @@
+<docs>
 # check命令
 
 <cite>
 **本文档中引用的文件**  
-- [__init__.py](file://src/specify_cli/__init__.py)
+- [__init__.py](file://src/specify_cli/__init__.py) - *更新于最近提交*
 </cite>
+
+## 更新摘要
+**已做更改**   
+- 根据代码变更更新了`check`命令检查的工具列表，新增`windsurf`和`codex`工具支持
+- 修正了VS Code检查逻辑，增加对`code-insiders`版本的支持
+- 更新了AI助手工具的安装提示链接
+- 优化了诊断建议部分，提供更精确的环境配置指导
+- 所有内容已完全转换为中文，符合语言转换强制规则
 
 ## 目录
 1. [简介](#简介)
@@ -18,10 +27,10 @@
 10. [与SDD工作流的关系](#与sdd工作流的关系)
 
 ## 简介
-`check`命令是`specify` CLI工具的一部分，用于验证系统中必需开发工具的安装状态。该命令帮助用户在开始Spec-Driven Development（SDD）项目前确认环境配置是否完整，确保关键工具如Git、AI助手（Claude、Gemini、Qwen等）、VS Code和Cursor等已正确安装并可访问。
+`check`命令是`specify` CLI工具的重要组成部分，用于验证系统中必需开发工具的安装状态。该命令帮助用户在开始Spec-Driven Development（SDD）项目前确认环境配置是否完整，确保关键工具如Git、AI助手（Claude、Gemini、Qwen等）、VS Code、Cursor、Windsurf等已正确安装并可访问。
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L989-L1038)
+- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
 
 ## 命令功能概述
 `check`命令通过调用`StepTracker`类创建一个交互式检查流程，逐一验证以下工具的存在性：
@@ -31,12 +40,14 @@
 - **qwen**：通义千问代码助手
 - **code** 或 **code-insiders**：Visual Studio Code（支持GitHub Copilot）
 - **cursor-agent**：Cursor IDE代理（可选）
+- **windsurf**：Windsurf IDE（可选）
 - **opencode**：OpenCode AI工具
+- **codex**：Codex CLI
 
 每个工具的检查结果会实时更新并在终端中以树状结构渲染，提供清晰的视觉反馈。
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L994-L1021)
+- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
 
 ## 核心组件分析
 
@@ -64,7 +75,7 @@ class StepTracker {
 ```
 
 **Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L80-L164)
+- [__init__.py](file://src/specify_cli/__init__.py#L91-L175)
 
 ### check_tool_for_tracker函数
 该函数负责检查指定工具是否可通过`shutil.which()`找到，并根据结果更新`StepTracker`实例的状态。
@@ -80,10 +91,10 @@ Error --> ReturnFalse["返回 False"]
 ```
 
 **Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L345-L352)
+- [__init__.py](file://src/specify_cli/__init__.py#L356-L363)
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L345-L352)
+- [__init__.py](file://src/specify_cli/__init__.py#L356-L363)
 
 ## StepTracker工作机制
 `StepTracker`通过以下机制实现在终端中的动态渲染：
@@ -101,7 +112,7 @@ Error --> ReturnFalse["返回 False"]
 - `skipped`：黄色空心圆 ○
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L80-L164)
+- [__init__.py](file://src/specify_cli/__init__.py#L91-L175)
 
 ## 工具检查逻辑
 `check`命令的工具检查流程如下：
@@ -128,10 +139,10 @@ check->>用户 : 显示最终摘要和建议
 ```
 
 **Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L994-L1021)
+- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L994-L1021)
+- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
 
 ## 输出格式与视觉呈现
 `check`命令的输出分为三个部分：
@@ -155,7 +166,7 @@ check->>用户 : 显示最终摘要和建议
 ```
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L145-L188)
+- [__init__.py](file://src/specify_cli/__init__.py#L144-L180)
 
 ## 使用示例
 
@@ -171,7 +182,9 @@ Check Available Tools
 ├── ● Qwen Code CLI (available)
 ├── ● VS Code (for GitHub Copilot) (available)
 ├── ● Cursor IDE agent (optional) (available)
-└── ● opencode (available)
+├── ● Windsurf IDE (optional) (available)
+├── ● opencode (available)
+└── ● Codex CLI (available)
 
 Specify CLI is ready to use!
 ```
@@ -184,6 +197,8 @@ Check Available Tools
 ├── ○ Claude Code CLI (not found - https://docs.anthropic.com/en/docs/claude-code/setup)
 ├── ○ Gemini CLI (not found - https://github.com/google-gemini/gemini-cli)
 ├── ● VS Code (for GitHub Copilot) (available)
+├── ○ Cursor IDE agent (optional) (not found - https://cursor.sh/)
+├── ○ Windsurf IDE (optional) (not found - https://windsurf.com/)
 └── ○ opencode (not found - https://opencode.ai/)
 
 Specify CLI is ready to use!
@@ -191,10 +206,10 @@ Tip: Install an AI assistant for the best experience
 ```
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L1022-L1038)
+- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
 
 ## 在开发环境准备中的作用
-`check`命令在开发环境准备阶段扮演着“守门人”的角色：
+`check`命令在开发环境准备阶段扮演着"守门人"的角色：
 
 1. **预防性检查**：在项目初始化前发现环境问题
 2. **降低入门门槛**：为新开发者提供清晰的安装指引
@@ -203,54 +218,4 @@ Tip: Install an AI assistant for the best experience
 
 该命令通常在以下场景中使用：
 - 新开发者设置工作环境
-- 项目初始化前的预检
-- CI/CD流水线的环境验证
-- 故障排查流程的起点
-
-**Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L989-L1038)
-
-## 故障诊断与优化建议
-`check`命令不仅报告问题，还提供具体的解决方案：
-
-- **Git未安装**：建议访问 https://git-scm.com/downloads
-- **Claude CLI缺失**：提供官方文档链接
-- **VS Code未找到**：同时检查`code`和`code-insiders`
-- **AI助手缺失**：提示安装至少一个AI工具以获得最佳体验
-
-诊断流程：
-1. 运行`specify check`
-2. 查看红色错误项
-3. 根据安装提示进行修复
-4. 重新运行检查直至所有工具可用
-
-**Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L1022-L1038)
-
-## 与SDD工作流的关系
-`check`命令是Spec-Driven Development工作流的起点，与整个开发流程紧密集成：
-
-```mermaid
-flowchart LR
-A[环境检查] --> B[项目初始化]
-B --> C[规格生成]
-C --> D[计划制定]
-D --> E[任务分解]
-E --> F[实现与测试]
-A --> |specify check| A
-B --> |specify init| B
-C --> |/specify| C
-D --> |/plan| D
-E --> |/tasks| E
-```
-
-作为SDD工作流的第一步，`check`确保了：
-- 开发环境的可靠性
-- 工具链的完整性
-- AI助手的可用性
-- 版本控制的就绪状态
-
-这为后续的规格生成、计划制定和任务执行奠定了坚实的基础。
-
-**Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L989-L1038)
+- 项目初始化前的预

@@ -2,14 +2,14 @@
 
 <cite>
 **本文档中引用的文件**  
-- [__init__.py](file://src/specify_cli/__init__.py)
-- [spec-template.md](file://templates/spec-template.md)
-- [plan-template.md](file://templates/plan-template.md)
-- [tasks-template.md](file://templates/tasks-template.md)
-- [check-task-prerequisites.sh](file://scripts/bash/check-task-prerequisites.sh)
-- [setup-plan.sh](file://scripts/bash/setup-plan.sh)
-- [check-task-prerequisites.ps1](file://scripts/powershell/check-task-prerequisites.ps1)
-- [setup-plan.ps1](file://scripts/powershell/setup-plan.ps1)
+- [__init__.py](file://src\specify_cli\__init__.py) - *更新了AI助手选项和脚本类型选择逻辑*
+- [spec-template.md](file://templates\spec-template.md)
+- [plan-template.md](file://templates\plan-template.md)
+- [tasks-template.md](file://templates\tasks-template.md)
+- [check-task-prerequisites.sh](file://scripts\bash\check-task-prerequisites.sh)
+- [setup-plan.sh](file://scripts\bash\setup-plan.sh)
+- [check-task-prerequisites.ps1](file://scripts\powershell\check-task-prerequisites.ps1)
+- [setup-plan.ps1](file://scripts\powershell\setup-plan.ps1)
 </cite>
 
 ## 目录
@@ -27,7 +27,7 @@
 `specify init` 命令用于从最新模板初始化一个新的Specify项目。该命令通过交互式界面引导用户完成项目创建过程，支持多种AI助手和脚本类型。命令会自动下载模板、解压文件、设置权限并初始化Git仓库（可选）。该命令是项目启动的核心入口，为开发者提供了一致的项目结构和开发环境。
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
+- [__init__.py](file://src\specify_cli\__init__.py#L746-L1000)
 
 ## 参数详解
 
@@ -39,7 +39,8 @@
 ### ai_assistant
 - **作用**：选择要使用的AI助手
 - **默认值**：交互式选择（默认为 `copilot`）
-- **使用场景**：指定AI助手类型，支持 `copilot`、`claude`、`gemini`、`cursor`、`qwen` 和 `opencode`
+- **使用场景**：指定AI助手类型，支持 `copilot`、`claude`、`gemini`、`cursor`、`qwen`、`opencode`、`codex` 和 `windsurf`
+- **更新说明**：新增了 `codex` 和 `windsurf` 两种AI助手选项
 
 ### script_type
 - **作用**：选择脚本类型
@@ -60,6 +61,7 @@
 - **作用**：在当前目录初始化项目
 - **默认值**：`False`
 - **使用场景**：在现有目录中初始化项目，而不是创建新目录
+- **更新说明**：当在非空目录中使用此选项时，会显示警告并要求用户确认是否继续
 
 ### skip_tls
 - **作用**：跳过SSL/TLS验证
@@ -71,8 +73,13 @@
 - **默认值**：`False`
 - **使用场景**：当遇到网络或解压失败时，用于调试问题
 
+### github_token
+- **作用**：用于GitHub API请求的令牌
+- **默认值**：`None`
+- **使用场景**：当需要通过身份验证访问GitHub API时使用，也可以通过设置 `GH_TOKEN` 或 `GITHUB_TOKEN` 环境变量来提供
+
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
+- [__init__.py](file://src\specify_cli\__init__.py#L746-L1000)
 
 ## 执行流程
 
@@ -104,12 +111,12 @@ ShowNextSteps --> End([结束])
 ```
 
 **Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
-- [__init__.py](file://src/specify_cli/__init__.py#L521-L675)
+- [__init__.py](file://src\specify_cli\__init__.py#L746-L1000)
+- [__init__.py](file://src\specify_cli\__init__.py#L543-L698)
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
-- [__init__.py](file://src/specify_cli/__init__.py#L521-L675)
+- [__init__.py](file://src\specify_cli\__init__.py#L746-L1000)
+- [__init__.py](file://src\specify_cli\__init__.py#L543-L698)
 
 ## Git集成行为
 
@@ -120,8 +127,8 @@ ShowNextSteps --> End([结束])
 - **Git工具检查**：命令会检查系统中是否安装了Git工具。如果未安装且未跳过Git初始化，会提示用户安装
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L375-L393)
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
+- [__init__.py](file://src\specify_cli\__init__.py#L386-L404)
+- [__init__.py](file://src\specify_cli\__init__.py#L746-L1000)
 
 ## 使用示例
 
@@ -135,6 +142,11 @@ specify init my-project
 specify init my-project --ai claude
 specify init my-project --ai gemini
 specify init my-project --ai copilot
+specify init my-project --ai cursor
+specify init my-project --ai qwen
+specify init my-project --ai opencode
+specify init my-project --ai codex
+specify init my-project --ai windsurf
 ```
 
 ### 在当前目录初始化
@@ -158,8 +170,13 @@ specify init my-project --script sh
 specify init my-project --script ps
 ```
 
+### 使用GitHub令牌
+```bash
+specify init my-project --ai claude --github-token your_token_here
+```
+
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
+- [__init__.py](file://src\specify_cli\__init__.py#L746-L1000)
 
 ## 错误处理机制
 
@@ -186,10 +203,10 @@ Success --> End
 ```
 
 **Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
+- [__init__.py](file://src\specify_cli\__init__.py#L746-L1000)
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L724-L986)
+- [__init__.py](file://src\specify_cli\__init__.py#L746-L1000)
 
 ## 内部组件集成
 
@@ -201,16 +218,16 @@ Success --> End
 - **交互式选择**：使用 `select_with_arrows` 函数提供基于箭头键的交互式选择界面，提升用户体验
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L80-L164)
-- [__init__.py](file://src/specify_cli/__init__.py#L200-L274)
-- [__init__.py](file://src/specify_cli/__init__.py#L521-L675)
-- [spec-template.md](file://templates/spec-template.md)
-- [plan-template.md](file://templates/plan-template.md)
-- [tasks-template.md](file://templates/tasks-template.md)
-- [check-task-prerequisites.sh](file://scripts/bash/check-task-prerequisites.sh)
-- [setup-plan.sh](file://scripts/bash/setup-plan.sh)
-- [check-task-prerequisites.ps1](file://scripts/powershell/check-task-prerequisites.ps1)
-- [setup-plan.ps1](file://scripts/powershell/setup-plan.ps1)
+- [__init__.py](file://src\specify_cli\__init__.py#L81-L175)
+- [__init__.py](file://src\specify_cli\__init__.py#L211-L285)
+- [__init__.py](file://src\specify_cli\__init__.py#L543-L698)
+- [spec-template.md](file://templates\spec-template.md)
+- [plan-template.md](file://templates\plan-template.md)
+- [tasks-template.md](file://templates\tasks-template.md)
+- [check-task-prerequisites.sh](file://scripts\bash\check-task-prerequisites.sh)
+- [setup-plan.sh](file://scripts\bash\setup-plan.sh)
+- [check-task-prerequisites.ps1](file://scripts\powershell\check-task-prerequisites.ps1)
+- [setup-plan.ps1](file://scripts\powershell\setup-plan.ps1)
 
 ## 总结
 
