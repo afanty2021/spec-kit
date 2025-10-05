@@ -1,216 +1,198 @@
-<docs>
 # CLI命令参考
 
 <cite>
 **本文档中引用的文件**  
-- [__init__.py](file://src/specify_cli/__init__.py) - *更新了对新AI代理的支持*
-- [AGENTS.md](file://AGENTS.md) - *新增了对Windsurf和opencode等AI代理的说明*
-- [README.md](file://README.md) - *更新了CLI参考文档*
+- [__init__.py](file://src/specify_cli/__init__.py)
+- [check-prerequisites.sh](file://scripts/bash/check-prerequisites.sh)
+- [check-prerequisites.ps1](file://scripts/powershell/check-prerequisites.ps1)
+- [common.sh](file://scripts/bash/common.sh)
+- [common.ps1](file://scripts/powershell/common.ps1)
+- [README.md](file://README.md)
 </cite>
-
-## 更新摘要
-**已做更改**
-- 根据最新代码变更，更新了`init`和`check`命令的参数与选项描述
-- 新增了对`codex`和`windsurf` AI助手的支持说明
-- 修正了脚本类型选择逻辑的文档描述
-- 更新了使用示例以反映最新的命令行选项
-- 增强了错误处理机制的文档说明
 
 ## 目录
 1. [简介](#简介)
-2. [项目结构](#项目结构)
-3. [核心组件](#核心组件)
-4. [架构概述](#架构概述)
-5. [详细组件分析](#详细组件分析)
-6. [依赖分析](#依赖分析)
-7. [性能考虑](#性能考虑)
-8. [故障排除指南](#故障排除指南)
-9. [结论](#结论)
+2. [specify init 命令详解](#specify-init-命令详解)
+3. [specify check 命令详解](#specify-check-命令详解)
+4. [命令行使用示例](#命令行使用示例)
+5. [故障排除](#故障排除)
 
 ## 简介
-`specify_cli` 模块是用于初始化和配置“规范驱动开发”项目的命令行工具。它通过 `specify init` 和 `specify check` 两个主要命令，帮助用户快速搭建项目环境，并验证系统依赖是否满足要求。该工具基于 Typer 构建命令行界面，使用 Rich 库美化终端输出，提供交互式选择、进度追踪和清晰的视觉反馈。文档将深入解析这两个命令的技术实现、参数选项、调用流程以及与内部组件的集成方式。
-
-## 项目结构
-项目结构清晰地划分了功能模块，`src/specify_cli/__init__.py` 是 CLI 的入口文件，负责定义命令和协调各组件。模板文件存放在 `templates/` 目录下，脚本文件存放在 `scripts/` 目录下，分别支持 Bash 和 PowerShell。
-
-```mermaid
-graph TD
-A[src/specify_cli] --> B[__init__.py]
-C[templates] --> D[agent-file-template.md]
-C --> E[plan-template.md]
-C --> F[spec-template.md]
-C --> G[tasks-template.md]
-H[scripts] --> I[bash]
-H --> J[powershell]
-I --> K[*.sh]
-J --> L[*.ps1]
-```
-
-**Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py)
+`specify` 是一个用于启动和管理“规范驱动开发”（Spec-Driven Development）项目的命令行工具。它通过自动化项目初始化和环境检查，帮助开发者快速搭建开发环境。本参考文档将详细说明其两个核心子命令：`init` 和 `check`。
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py)
+- [README.md](file://README.md#L137-L146)
 
-## 核心组件
-`specify_cli` 的核心功能由 `init` 和 `check` 两个命令驱动，它们依赖于一系列内部函数和类来完成具体任务，如下载模板、检查工具、处理文件权限等。
+## specify init 命令详解
+`specify init` 命令用于从最新的模板初始化一个新的 Specify 项目。它会下载模板、解压文件、设置脚本权限，并可选择性地初始化 Git 仓库。
 
-**Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L746-L1000)
+### 参数与选项
+该命令支持以下参数和选项：
 
-## 架构概述
-该 CLI 工具采用模块化设计，`Typer` 负责命令行解析和路由，`Rich` 提供高级终端渲染能力，`httpx` 处理网络请求，`StepTracker` 类则实现了类似 Claude Code 的树状进度追踪系统。
-
-```mermaid
-graph LR
-A[Typer] --> B[命令行解析]
-B --> C[init 命令]
-B --> D[check 命令]
-C --> E[download_and_extract_template]
-C --> F[ensure_executable_scripts]
-D --> G[check_tool_for_tracker]
-E --> H[httpx.Client]
-F --> I[os.chmod]
-G --> J[shutil.which]
-K[Rich] --> L[Console]
-K --> M[Progress]
-K --> N[Panel]
-K --> O[Tree]
-L --> B
-M --> C
-N --> C
-O --> C
-O --> D
-```
-
-**Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py)
-
-## 详细组件分析
-
-### init 命令分析
-`specify init` 命令是项目初始化的核心，它引导用户完成从选择 AI 助手到创建项目目录的全过程。
-
-#### 技术实现
-`init` 命令的执行流程是一个精心编排的序列，通过 `StepTracker` 实时反馈进度。
-
-```mermaid
-sequenceDiagram
-participant User as 用户
-participant Init as init命令
-participant Tracker as StepTracker
-participant Downloader as download_template_from_github
-participant Extractor as download_and_extract_template
-participant Git as init_git_repo
-User->>Init : specify init my-project --ai claude
-Init->>Init : 参数验证
-Init->>User : 交互式选择AI助手和脚本类型
-Init->>Tracker : 创建进度追踪器
-Tracker->>Init : 实时更新UI
-Init->>Downloader : 获取最新发布信息
-Downloader-->>Init : 返回模板元数据
-Init->>Extractor : 下载并解压模板
-Extractor->>Extractor : 显示下载进度
-Extractor->>Extractor : 处理嵌套目录结构
-Extractor-->>Init : 返回项目路径
-Init->>Init : 确保脚本可执行
-Init->>Git : 初始化Git仓库
-Git-->>Init : 返回初始化结果
-Init->>Tracker : 完成所有步骤
-Init->>User : 显示“下一步”操作指南
-```
-
-**Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L746-L1000)
+| 参数/选项 | 类型 | 描述 |
+|---------|------|------|
+| `<project-name>` | 参数 | 新项目目录的名称（如果使用 `--here` 或使用 `.` 表示当前目录，则可选） |
+| `--ai` | 选项 | 要使用的 AI 助手：`claude`, `gemini`, `copilot`, `cursor`, `qwen`, `opencode`, `codex`, `windsurf`, `kilocode`, `auggie`, 或 `roo` |
+| `--script` | 选项 | 要使用的脚本类型：`sh` (POSIX Shell) 或 `ps` (PowerShell) |
+| `--ignore-agent-tools` | 标志 | 跳过对 Claude Code 等 AI 代理工具的检查 |
+| `--no-git` | 标志 | 跳过 Git 仓库的初始化 |
+| `--here` | 标志 | 在当前目录而不是创建新目录中初始化项目 |
+| `--force` | 标志 | 当在当前目录（非空）中初始化时强制合并/覆盖（跳过确认） |
+| `--skip-tls` | 标志 | 跳过 SSL/TLS 验证（不推荐） |
+| `--debug` | 标志 | 启用详细的调试输出以进行故障排除 |
+| `--github-token` | 选项 | 用于 API 请求的 GitHub 令牌（或设置 GH_TOKEN/GITHUB_TOKEN 环境变量） |
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L746-L1000)
+- [README.md](file://README.md#L148-L161)
+- [__init__.py](file://src/specify_cli/__init__.py#L750-L1099)
 
-#### 参数与选项
-`init` 命令提供了丰富的参数和选项来定制初始化过程。
+### 内部执行流程
+`specify init` 命令的内部执行流程如下：
 
-| 参数/选项 | 类型 | 描述 | 默认值 |
-| :--- | :--- | :--- | :--- |
-| `project_name` | 参数 | 新项目目录的名称 | 无 |
-| `--ai` | 选项 | 指定使用的AI助手（claude, gemini, copilot, cursor, qwen, opencode, codex, windsurf） | 交互式选择 |
-| `--script` | 选项 | 指定脚本类型（sh 或 ps） | 根据操作系统自动选择 |
-| `--ignore-agent-tools` | 选项 | 跳过对AI代理工具的检查 | False |
-| `--no-git` | 选项 | 跳过Git仓库初始化 | False |
-| `--here` | 选项 | 在当前目录初始化项目 | False |
-| `--skip-tls` | 选项 | 跳过SSL/TLS验证（不推荐） | False |
-| `--debug` | 选项 | 显示详细的诊断输出 | False |
-| `--github-token` | 选项 | 用于API请求的GitHub令牌 | 无 |
-
-#### 使用示例
-```bash
-# 在名为"my-web-app"的目录中初始化项目，使用Claude
-specify init my-web-app --ai claude
-
-# 在当前目录初始化项目，跳过Git初始化
-specify init --here --no-git
-
-# 在名为"mobile-app"的目录中初始化项目，使用Gemini
-specify init mobile-app --ai gemini --script sh
-
-# 使用Codex CLI初始化项目
-specify init my-project --ai codex
-
-# 使用Windsurf IDE初始化项目
-specify init my-project --ai windsurf
-```
-
-### check 命令分析
-`specify check` 命令用于诊断当前环境，确保所有必需的工具都已正确安装。
-
-#### 技术实现
-`check` 命令通过 `check_tool_for_tracker` 函数逐一检查系统中是否存在指定的可执行文件，并将结果实时反映在 `StepTracker` 中。
+1.  **参数验证**：检查 `--here` 和项目名称是否同时指定，确保参数组合有效。
+2.  **工具检查**：检查 `git` 是否安装（除非指定了 `--no-git`）。
+3.  **AI 助手选择**：如果未通过 `--ai` 指定，则通过交互式界面让用户选择 AI 助手。
+4.  **代理工具检查**：除非指定了 `--ignore-agent-tools`，否则会检查所选 AI 助手（如 claude, gemini）的 CLI 工具是否已安装。
+5.  **脚本类型选择**：确定使用 `sh` 还是 `ps` 脚本类型，优先使用 `--script` 选项，否则根据操作系统自动选择。
+6.  **模板下载**：调用 `download_template_from_github` 函数，根据选定的 AI 助手和脚本类型，从 GitHub 仓库的最新发布版本中下载对应的模板 ZIP 文件。
+7.  **模板解压**：
+    *   如果使用 `--here` 或 `.`，则先将 ZIP 文件解压到临时目录，然后将内容合并到当前目录（处理可能存在的嵌套目录结构）。
+    *   否则，直接将 ZIP 文件解压到新创建的项目目录中。
+8.  **脚本权限设置**：调用 `ensure_executable_scripts` 函数，确保项目中所有 `.sh` 脚本都具有可执行权限（仅限非 Windows 系统）。
+9.  **Git 初始化**：如果未指定 `--no-git` 且 `git` 工具可用，则调用 `init_git_repo` 函数在项目目录中初始化一个新的 Git 仓库，并进行初始提交。
+10. **完成与提示**：显示项目准备就绪的消息，并提供下一步操作的建议。
 
 ```mermaid
 flowchart TD
-Start([check命令启动]) --> ShowBanner["显示ASCII艺术横幅"]
-ShowBanner --> CreateTracker["创建StepTracker实例"]
-CreateTracker --> AddSteps["为每个工具添加检查步骤"]
-AddSteps --> CheckGit["检查git"]
-CheckGit --> CheckClaude["检查claude"]
-CheckClaude --> CheckGemini["检查gemini"]
-CheckGemini --> CheckQwen["检查qwen"]
-CheckQwen --> CheckCode["检查VS Code"]
-CheckCode --> CheckCursor["检查cursor-agent"]
-CheckCursor --> CheckOpencode["检查opencode"]
-CheckOpencode --> CheckCodex["检查codex"]
-CheckCodex --> CheckWindsurf["检查windsurf"]
-CheckWindsurf --> RenderTree["渲染最终的树状结果"]
-RenderTree --> PrintSummary["打印总结和建议"]
-PrintSummary --> End([命令结束])
+Start([开始]) --> ValidateArgs["验证参数"]
+ValidateArgs --> CheckGit["检查 Git"]
+CheckGit --> SelectAI["选择 AI 助手"]
+SelectAI --> CheckAgent["检查代理工具"]
+CheckAgent --> SelectScript["选择脚本类型"]
+SelectScript --> Download["下载模板"]
+Download --> Extract["解压模板"]
+Extract --> SetPerm["设置脚本权限"]
+SetPerm --> InitGit["初始化 Git 仓库"]
+InitGit --> Complete["完成并提示"]
+Complete --> End([结束])
 ```
 
 **Diagram sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
+- [__init__.py](file://src/specify_cli/__init__.py#L750-L1099)
+- [__init__.py](file://src/specify_cli/__init__.py#L435-L544)
+- [__init__.py](file://src/specify_cli/__init__.py#L547-L702)
+- [__init__.py](file://src/specify_cli/__init__.py#L411-L432)
+- [__init__.py](file://src/specify_cli/__init__.py#L705-L747)
+
+## specify check 命令详解
+`specify check` 命令用于检查系统中是否安装了所有必需的工具。
+
+### 检查的先决条件
+该命令会检查以下工具是否存在：
+
+-   `git`：版本控制系统
+-   `claude`：Claude Code CLI
+-   `gemini`：Gemini CLI
+-   `qwen`：Qwen Code CLI
+-   `code`：Visual Studio Code
+-   `code-insiders`：Visual Studio Code Insiders
+-   `cursor-agent`：Cursor IDE agent
+-   `windsurf`：Windsurf IDE
+-   `kilocode`：Kilo Code IDE
+-   `opencode`：opencode
+-   `codex`：Codex CLI
+-   `auggie`：Auggie CLI
 
 **Section sources**
-- [__init__.py](file://src/specify_cli/__init__.py#L1003-L1039)
+- [README.md](file://README.md#L137-L146)
+- [__init__.py](file://src/specify_cli/__init__.py#L1102-L1142)
 
-#### 返回值
-`check` 命令本身没有返回值，但它会通过终端输出一个详细的树状报告，明确标示每个工具的状态（完成、错误、跳过）。如果所有检查都通过，它会输出绿色的“Specify CLI is ready to use!”提示。
+### 错误提示与解决方法
+当 `specify check` 命令执行后，它会以树状结构显示每个工具的检查结果。
 
-### CLI框架与集成
-CLI 的构建和美化依赖于 Typer 和 Rich 两大库。
+*   **绿色圆点 (●)**：表示工具已找到并可用。
+*   **红色圆点 (●)**：表示工具未找到。
 
-#### Typer 框架集成
-`specify_cli` 使用 Typer 作为其命令行界面框架。`app` 变量是一个 `Typer` 实例，通过 `@app.command()` 装饰器将 `init` 和 `check` 函数注册为子命令。`BannerGroup` 类继承自 `TyperGroup`，用于在显示帮助信息前展示自定义横幅。
+如果某个工具检查失败（显示为红色），命令的输出会提供相应的提示信息。例如，如果缺少 `git`，它会提示：“Tip: Install git for repository management”。对于缺少 AI 助手的情况，它会提示：“Tip: Install an AI assistant for the best experience”。
+
+**解决方法**：
+1.  根据提示信息，访问相应的官方网站或文档链接安装缺失的工具。
+2.  确保安装的工具已正确添加到系统的 `PATH` 环境变量中，以便命令行可以全局访问。
+3.  对于 `claude` 的特殊情况，即使 `claude` 不在 `PATH` 中，如果 `~/.claude/local/claude` 文件存在，`check_tool` 函数也会认为其已安装。
 
 ```mermaid
 classDiagram
-class Typer
-class BannerGroup
-class app
-BannerGroup --|> TyperGroup : 继承
-app : +name : str
-app : +help : str
-app : +cls : Type[TyperGroup]
-app ..> BannerGroup : 使用
-app --> init : 注册
-app --> check : 注册
+class StepTracker {
++title : str
++steps : list
++add(key : str, label : str)
++start(key : str, detail : str)
++complete(key : str, detail : str)
++error(key : str, detail : str)
++render()
+}
+class check {
++tracker : StepTracker
++git_ok : bool
++claude_ok : bool
++...
+}
+check --> StepTracker : 使用
 ```
 
-**
+**Diagram sources**
+- [__init__.py](file://src/specify_cli/__init__.py#L1102-L1142)
+- [__init__.py](file://src/specify_cli/__init__.py#L146-L181)
+- [__init__.py](file://src/specify_cli/__init__.py#L110-L113)
+
+## 命令行使用示例
+以下是一些 `specify` 命令的典型和边缘场景使用示例。
+
+### specify init 示例
+```bash
+# 基本项目初始化
+specify init my-project
+
+# 使用特定 AI 助手初始化
+specify init my-project --ai claude
+
+# 在当前目录初始化
+specify init . --ai copilot
+# 或使用 --here 标志
+specify init --here --ai copilot
+
+# 强制合并到当前（非空）目录而不确认
+specify init . --force --ai copilot
+
+# 跳过 Git 初始化
+specify init my-project --ai gemini --no-git
+
+# 启用调试输出以进行故障排除
+specify init my-project --ai claude --debug
+
+# 使用 GitHub 令牌进行 API 请求
+specify init my-project --ai claude --github-token ghp_your_token_here
+```
+
+### specify check 示例
+```bash
+# 检查系统要求
+specify check
+```
+
+**Section sources**
+- [README.md](file://README.md#L163-L203)
+
+## 故障排除
+### 检查脚本 (`check-prerequisites.sh`)
+除了 `specify check`，项目还包含一个更具体的检查脚本 `scripts/bash/check-prerequisites.sh`，它用于在开发流程的特定阶段验证前提条件。
+
+*   **功能**：该脚本会检查当前分支是否符合 `001-feature-name` 的命名规范，并验证 `plan.md` 等关键文件是否存在。
+*   **使用方法**：可以在执行 `/plan` 或 `/implement` 等命令前运行此脚本，以确保环境已正确设置。
+*   **输出**：支持文本和 JSON 格式输出，便于集成到自动化流程中。
+
+**Section sources**
+- [check-prerequisites.sh](file://scripts/bash/check-prerequisites.sh#L0-L165)
+- [common.sh](file://scripts/bash/common.sh#L59-L112)
+- [check-prerequisites.ps1](file://scripts/powershell/check-prerequisites.ps1#L0-L85)
+- [common.ps1](file://scripts/powershell/common.ps1#L115-L135)
