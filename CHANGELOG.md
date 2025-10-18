@@ -1,9 +1,83 @@
 # Changelog
 
-All notable changes to the Specify CLI will be documented in this file.
+<!-- markdownlint-disable MD024 -->
+
+All notable changes to the Specify CLI and templates are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.0.19] - 2025-10-10
+
+### Added
+
+- Support for CodeBuddy (thank you to [@lispking](https://github.com/lispking) for the contribution).
+- You can now see Git-sourced errors in the Specify CLI.
+
+### Changed
+
+- Fixed the path to the constitution in `plan.md` (thank you to [@lyzno1](https://github.com/lyzno1) for spotting).
+- Fixed backslash escapes in generated TOML files for Gemini (thank you to [@hsin19](https://github.com/hsin19) for the contribution).
+- Implementation command now ensures that the correct ignore files are added (thank you to [@sigent-amazon](https://github.com/sigent-amazon) for the contribution).
+
+## [0.0.18] - 2025-10-06
+
+### Added
+
+- Support for using `.` as a shorthand for current directory in `specify init .` command, equivalent to `--here` flag but more intuitive for users.
+- Use the `/speckit.` command prefix to easily discover Spec Kit-related commands.
+- Refactor the prompts and templates to simplify their capabilities and how they are tracked. No more polluting things with tests when they are not needed.
+- Ensure that tasks are created per user story (simplifies testing and validation).
+- Add support for Visual Studio Code prompt shortcuts and automatic script execution.
+
+### Changed
+
+- All command files now prefixed with `speckit.` (e.g., `speckit.specify.md`, `speckit.plan.md`) for better discoverability and differentiation in IDE/CLI command palettes and file explorers
+
+## [0.0.17] - 2025-09-22
+
+### Added
+
+- New `/clarify` command template to surface up to 5 targeted clarification questions for an existing spec and persist answers into a Clarifications section in the spec.
+- New `/analyze` command template providing a non-destructive cross-artifact discrepancy and alignment report (spec, clarifications, plan, tasks, constitution) inserted after `/tasks` and before `/implement`.
+	- Note: Constitution rules are explicitly treated as non-negotiable; any conflict is a CRITICAL finding requiring artifact remediation, not weakening of principles.
+
+## [0.0.16] - 2025-09-22
+
+### Added
+
+- `--force` flag for `init` command to bypass confirmation when using `--here` in a non-empty directory and proceed with merging/overwriting files.
+
+## [0.0.15] - 2025-09-21
+
+### Added
+
+- Support for Roo Code.
+
+## [0.0.14] - 2025-09-21
+
+### Changed
+
+- Error messages are now shown consistently.
+
+## [0.0.13] - 2025-09-21
+
+### Added
+
+- Support for Kilo Code. Thank you [@shahrukhkhan489](https://github.com/shahrukhkhan489) with [#394](https://github.com/github/spec-kit/pull/394).
+- Support for Auggie CLI. Thank you [@hungthai1401](https://github.com/hungthai1401) with [#137](https://github.com/github/spec-kit/pull/137).
+- Agent folder security notice displayed after project provisioning completion, warning users that some agents may store credentials or auth tokens in their agent folders and recommending adding relevant folders to `.gitignore` to prevent accidental credential leakage.
+
+### Changed
+
+- Warning displayed to ensure that folks are aware that they might need to add their agent folder to `.gitignore`.
+- Cleaned up the `check` command output.
+
+## [0.0.12] - 2025-09-21
+
+### Changed
+
+- Added additional context for OpenAI Codex users - they need to set an additional environment variable, as described in [#417](https://github.com/github/spec-kit/issues/417).
 
 ## [0.0.11] - 2025-09-20
 
