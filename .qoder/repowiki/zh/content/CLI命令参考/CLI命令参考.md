@@ -1,17 +1,16 @@
-<docs>
 # CLI命令参考
 
 <cite>
 **本文档中引用的文件**  
 - [__init__.py](file://src/specify_cli/__init__.py) - *更新了对新AI代理的支持*
-- [AGENTS.md](file://AGENTS.md) - *新增了对Windsurf和opencode等AI代理的说明*
+- [AGENTS.md](file://AGENTS.md) - *新增了对Qwen Code和opencode等AI代理的说明*
 - [README.md](file://README.md) - *更新了CLI参考文档*
 </cite>
 
 ## 更新摘要
 **已做更改**
 - 根据最新代码变更，更新了`init`和`check`命令的参数与选项描述
-- 新增了对`codex`和`windsurf` AI助手的支持说明
+- 新增了对`qwen`和`opencode` AI助手的支持说明
 - 修正了脚本类型选择逻辑的文档描述
 - 更新了使用示例以反映最新的命令行选项
 - 增强了错误处理机制的文档说明
@@ -132,7 +131,7 @@ Init->>User : 显示“下一步”操作指南
 | 参数/选项 | 类型 | 描述 | 默认值 |
 | :--- | :--- | :--- | :--- |
 | `project_name` | 参数 | 新项目目录的名称 | 无 |
-| `--ai` | 选项 | 指定使用的AI助手（claude, gemini, copilot, cursor, qwen, opencode, codex, windsurf） | 交互式选择 |
+| `--ai` | 选项 | 指定使用的AI助手（claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, kilocode, auggie, roo, codebuddy, amp, q） | 交互式选择 |
 | `--script` | 选项 | 指定脚本类型（sh 或 ps） | 根据操作系统自动选择 |
 | `--ignore-agent-tools` | 选项 | 跳过对AI代理工具的检查 | False |
 | `--no-git` | 选项 | 跳过Git仓库初始化 | False |
@@ -151,6 +150,12 @@ specify init --here --no-git
 
 # 在名为"mobile-app"的目录中初始化项目，使用Gemini
 specify init mobile-app --ai gemini --script sh
+
+# 使用Qwen Code CLI初始化项目
+specify init my-project --ai qwen
+
+# 使用opencode CLI初始化项目
+specify init my-project --ai opencode
 
 # 使用Codex CLI初始化项目
 specify init my-project --ai codex
@@ -174,12 +179,16 @@ AddSteps --> CheckGit["检查git"]
 CheckGit --> CheckClaude["检查claude"]
 CheckClaude --> CheckGemini["检查gemini"]
 CheckGemini --> CheckQwen["检查qwen"]
-CheckQwen --> CheckCode["检查VS Code"]
-CheckCode --> CheckCursor["检查cursor-agent"]
-CheckCursor --> CheckOpencode["检查opencode"]
+CheckQwen --> CheckOpencode["检查opencode"]
 CheckOpencode --> CheckCodex["检查codex"]
 CheckCodex --> CheckWindsurf["检查windsurf"]
-CheckWindsurf --> RenderTree["渲染最终的树状结果"]
+CheckWindsurf --> CheckKilocode["检查kilocode"]
+CheckKilocode --> CheckAuggie["检查auggie"]
+CheckAuggie --> CheckRoo["检查roo"]
+CheckRoo --> CheckCodebuddy["检查codebuddy"]
+CheckCodebuddy --> CheckAmp["检查amp"]
+CheckAmp --> CheckQ["检查q"]
+CheckQ --> RenderTree["渲染最终的树状结果"]
 RenderTree --> PrintSummary["打印总结和建议"]
 PrintSummary --> End([命令结束])
 ```
@@ -212,5 +221,3 @@ app ..> BannerGroup : 使用
 app --> init : 注册
 app --> check : 注册
 ```
-
-**
