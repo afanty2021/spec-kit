@@ -1,32 +1,33 @@
 #!/usr/bin/env bash
-# Common functions and variables for all scripts
+# 公共函数和变量 - 所有脚本的共享库
 
-# Get repository root, with fallback for non-git repositories
+# 获取仓库根目录，支持非Git仓库的回退机制
 get_repo_root() {
     if git rev-parse --show-toplevel >/dev/null 2>&1; then
+        # 如果在Git仓库中，返回Git根目录
         git rev-parse --show-toplevel
     else
-        # Fall back to script location for non-git repos
+        # 非Git仓库的回退方案：使用脚本位置推断根目录
         local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
         (cd "$script_dir/../../.." && pwd)
     fi
 }
 
-# Get current branch, with fallback for non-git repositories
+# 获取当前分支，支持非Git仓库的回退机制
 get_current_branch() {
-    # First check if SPECIFY_FEATURE environment variable is set
+    # 首先检查SPECIFY_FEATURE环境变量是否已设置
     if [[ -n "${SPECIFY_FEATURE:-}" ]]; then
         echo "$SPECIFY_FEATURE"
         return
     fi
 
-    # Then check git if available
+    # 然后检查Git是否可用
     if git rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
         git rev-parse --abbrev-ref HEAD
         return
     fi
 
-    # For non-git repos, try to find the latest feature directory
+    # 非Git仓库：尝试找到最新的功能目录
     local repo_root=$(get_repo_root)
     local specs_dir="$repo_root/specs"
 
@@ -34,12 +35,14 @@ get_current_branch() {
         local latest_feature=""
         local highest=0
 
+        # 遍历specs目录，找到编号最高的功能
         for dir in "$specs_dir"/*; do
             if [[ -d "$dir" ]]; then
                 local dirname=$(basename "$dir")
+                # 匹配格式：XXX-功能名称（XXX为3位数字）
                 if [[ "$dirname" =~ ^([0-9]{3})- ]]; then
                     local number=${BASH_REMATCH[1]}
-                    number=$((10#$number))
+                    number=$((10#$number))  # 强制十进制解析
                     if [[ "$number" -gt "$highest" ]]; then
                         highest=$number
                         latest_feature=$dirname
@@ -54,24 +57,26 @@ get_current_branch() {
         fi
     fi
 
-    echo "main"  # Final fallback
+    echo "main"  # 最终回退到main分支
 }
 
-# Check if we have git available
+# 检查Git是否可用
 has_git() {
     git rev-parse --show-toplevel >/dev/null 2>&1
 }
 
+# 检查功能分支命名格式
 check_feature_branch() {
-    local branch="$1"
-    local has_git_repo="$2"
+    local branch="$1"        # 要检查的分支名
+    local has_git_repo="$2"  # 是否有Git仓库
 
-    # For non-git repos, we can't enforce branch naming but still provide output
+    # 非Git仓库：无法强制执行分支命名，但仍提供输出
     if [[ "$has_git_repo" != "true" ]]; then
         echo "[specify] Warning: Git repository not detected; skipped branch validation" >&2
         return 0
     fi
 
+    # 检查分支名是否符合XXX-功能名称的格式
     if [[ ! "$branch" =~ ^[0-9]{3}- ]]; then
         echo "ERROR: Not on a feature branch. Current branch: $branch" >&2
         echo "Feature branches should be named like: 001-feature-name" >&2
@@ -81,6 +86,8 @@ check_feature_branch() {
     return 0
 }
 
+# 获取功能目录路径
+# 参数: $1=仓库根目录, $2=功能名称
 get_feature_dir() { echo "$1/specs/$2"; }
 
 # Find feature directory by numeric prefix instead of exact branch match

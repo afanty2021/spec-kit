@@ -1,26 +1,31 @@
 #!/usr/bin/env bash
 
+# set -e: 遇到错误立即退出，确保脚本的可靠性
 set -e
 
-JSON_MODE=false
-SHORT_NAME=""
-BRANCH_NUMBER=""
-ARGS=()
+# 初始化变量
+JSON_MODE=false    # JSON输出模式标志
+SHORT_NAME=""      # 用户自定义短名称
+BRANCH_NUMBER=""   # 手动指定的分支编号
+ARGS=()            # 存储位置参数
+
+# 命令行参数解析
 i=1
 while [ $i -le $# ]; do
     arg="${!i}"
     case "$arg" in
-        --json) 
-            JSON_MODE=true 
+        --json)
+            JSON_MODE=true
             ;;
         --short-name)
+            # 检查--short-name是否有值
             if [ $((i + 1)) -gt $# ]; then
                 echo 'Error: --short-name requires a value' >&2
                 exit 1
             fi
             i=$((i + 1))
             next_arg="${!i}"
-            # Check if the next argument is another option (starts with --)
+            # 检查下一个参数是否是另一个选项（以--开头）
             if [[ "$next_arg" == --* ]]; then
                 echo 'Error: --short-name requires a value' >&2
                 exit 1
@@ -28,6 +33,7 @@ while [ $i -le $# ]; do
             SHORT_NAME="$next_arg"
             ;;
         --number)
+            # 检查--number是否有值
             if [ $((i + 1)) -gt $# ]; then
                 echo 'Error: --number requires a value' >&2
                 exit 1
@@ -40,7 +46,7 @@ while [ $i -le $# ]; do
             fi
             BRANCH_NUMBER="$next_arg"
             ;;
-        --help|-h) 
+        --help|-h)
             echo "Usage: $0 [--json] [--short-name <name>] [--number N] <feature_description>"
             echo ""
             echo "Options:"

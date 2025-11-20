@@ -24,52 +24,77 @@ Or install globally:
     specify init --here
 """
 
-import os
-import subprocess
-import sys
-import zipfile
-import tempfile
-import shutil
-import shlex
-import json
-from pathlib import Path
-from typing import Optional, Tuple
+# 导入标准库模块
+import os          # 操作系统接口，用于环境变量和文件系统操作
+import subprocess # 子进程管理，用于执行外部命令
+import sys         # 系统相关参数和函数，用于访问Python解释器相关变量
+import zipfile     # ZIP文件处理，用于解压模板文件
+import tempfile    # 临时文件和目录创建
+import shutil      # 高级文件操作，用于文件复制和删除
+import shlex       # Shell词法分析，用于命令行参数解析
+import json        # JSON数据处理，用于配置文件读写
+from pathlib import Path    # 面向对象的路径操作
+from typing import Optional, Tuple  # 类型提示支持
 
-import typer
-import httpx
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.text import Text
-from rich.live import Live
-from rich.align import Align
-from rich.table import Table
-from rich.tree import Tree
-from typer.core import TyperGroup
+# 导入第三方库
+import typer      # 现代Python CLI框架，用于命令行界面创建
+import httpx      # 异步HTTP客户端，用于网络请求和文件下载
+from rich.console import Console  # Rich库的控制台输出，提供丰富的终端格式化
+from rich.panel import Panel      # Rich库的面板组件，用于创建带边框的文本框
+from rich.progress import Progress, SpinnerColumn, TextColumn  # Rich库的进度条组件
+from rich.text import Text        # Rich库的文本组件，支持样式和颜色
+from rich.live import Live        # Rich库的实时更新组件，用于动态显示
+from rich.align import Align      # Rich库的对齐组件，用于文本对齐
+from rich.table import Table      # Rich库的表格组件，用于格式化显示
+from rich.tree import Tree        # Rich库的树形组件，用于层次化显示
+from typer.core import TyperGroup  # Typer的组类，用于命令分组
 
-# For cross-platform keyboard input
-import readchar
-import ssl
-import truststore
+# 跨平台键盘输入支持
+import readchar  # 读取单个字符输入，支持跨平台键盘事件
+import ssl       # SSL/TLS支持，用于安全网络连接
+import truststore  # 信任存储库，用于系统证书验证
 
+# 创建SSL上下文，使用系统信任存储进行HTTPS请求验证
 ssl_context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+# 创建HTTP客户端，配置SSL验证
 client = httpx.Client(verify=ssl_context)
 
 def _github_token(cli_token: str | None = None) -> str | None:
-    """Return sanitized GitHub token (cli arg takes precedence) or None."""
+    """
+    获取经过清理的GitHub令牌，优先级：CLI参数 > GH_TOKEN环境变量 > GITHUB_TOKEN环境变量
+
+    Args:
+        cli_token: 通过命令行参数传入的GitHub令牌（可选）
+
+    Returns:
+        str | None: 清理后的GitHub令牌，如果未找到则返回None
+    """
     return ((cli_token or os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN") or "").strip()) or None
 
 def _github_auth_headers(cli_token: str | None = None) -> dict:
-    """Return Authorization header dict only when a non-empty token exists."""
+    """
+    生成GitHub API认证请求头
+
+    Args:
+        cli_token: 通过命令行参数传入的GitHub令牌（可选）
+
+    Returns:
+        dict: 包含Authorization头的字典，仅在令牌存在时返回
+    """
     token = _github_token(cli_token)
     return {"Authorization": f"Bearer {token}"} if token else {}
 
-# Agent configuration with name, folder, install URL, and CLI tool requirement
+# AI代理配置：包含名称、文件夹、安装URL和CLI工具要求
+# 每个代理都包含以下字段：
+# - name: 人类可读的显示名称
+# - folder: 项目中用于存储代理特定配置的文件夹
+# - install_url: 安装指南URL（如果需要CLI工具）
+# - requires_cli: 是否需要命令行工具（False表示基于IDE的工具）
 AGENT_CONFIG = {
     "copilot": {
         "name": "GitHub Copilot",
         "folder": ".github/",
-        "install_url": None,  # IDE-based, no CLI check needed
+        "install_url": None,  # 基于IDE，无需CLI检查
         "requires_cli": False,
     },
     "claude": {
@@ -152,51 +177,119 @@ AGENT_CONFIG = {
     },
 }
 
+# 脚本类型选择：支持的脚本类型及其描述
 SCRIPT_TYPE_CHOICES = {"sh": "POSIX Shell (bash/zsh)", "ps": "PowerShell"}
 
+# Claude CLI的本地路径，用于处理migrate-installer后的特殊情况
+# 见: https://github.com/github/spec-kit/issues/123
 CLAUDE_LOCAL_PATH = Path.home() / ".claude" / "local" / "claude"
 
+# ASCII艺术横幅，用于CLI启动时的视觉展示
 BANNER = """
 ███████╗██████╗ ███████╗ ██████╗██╗███████╗██╗   ██╗
 ██╔════╝██╔══██╗██╔════╝██╔════╝██║██╔════╝╚██╗ ██╔╝
-███████╗██████╔╝█████╗  ██║     ██║█████╗   ╚████╔╝ 
-╚════██║██╔═══╝ ██╔══╝  ██║     ██║██╔══╝    ╚██╔╝  
-███████║██║     ███████╗╚██████╗██║██║        ██║   
-╚══════╝╚═╝     ╚══════╝ ╚═════╝╚═╝╚═╝        ╚═╝   
+███████╗██████╔╝█████╗  ██║     ██║█████╗   ╚████╔╝
+╚════██║██╔═══╝ ██╔══╝  ██║     ██║██╔══╝    ╚██╔╝
+███████║██║     ███████╗╚██████╗██║██║        ██║
+╚══════╝╚═╝     ╚══════╝ ╚═════╝╚═╝╚═╝        ╚═╝
 """
 
+# 工具标语：显示在横幅下方的描述文字
 TAGLINE = "GitHub Spec Kit - Spec-Driven Development Toolkit"
 class StepTracker:
-    """Track and render hierarchical steps without emojis, similar to Claude Code tree output.
-    Supports live auto-refresh via an attached refresh callback.
+    """
+    步骤跟踪器：跟踪和渲染层次化步骤，不使用表情符号，类似于Claude Code的树形输出
+
+    支持通过附加的刷新回调函数进行实时自动刷新
+
+    Attributes:
+        title (str): 跟踪器的标题
+        steps (list): 步骤列表，每个步骤为字典：{key, label, status, detail}
+        status_order (dict): 状态优先级定义，用于排序显示
+        _refresh_cb (callable): UI刷新回调函数
     """
     def __init__(self, title: str):
+        """
+        初始化步骤跟踪器
+
+        Args:
+            title (str): 跟踪器的显示标题
+        """
         self.title = title
-        self.steps = []  # list of dicts: {key, label, status, detail}
+        self.steps = []  # 步骤列表：每个步骤是包含key, label, status, detail的字典
         self.status_order = {"pending": 0, "running": 1, "done": 2, "error": 3, "skipped": 4}
-        self._refresh_cb = None  # callable to trigger UI refresh
+        self._refresh_cb = None  # UI刷新回调函数
 
     def attach_refresh(self, cb):
+        """
+        附加刷新回调函数
+
+        Args:
+            cb (callable): 用于触发UI刷新的回调函数
+        """
         self._refresh_cb = cb
 
     def add(self, key: str, label: str):
+        """
+        添加新步骤到跟踪器
+
+        Args:
+            key (str): 步骤的唯一标识符
+            label (str): 步骤的显示标签
+        """
         if key not in [s["key"] for s in self.steps]:
             self.steps.append({"key": key, "label": label, "status": "pending", "detail": ""})
             self._maybe_refresh()
 
     def start(self, key: str, detail: str = ""):
+        """
+        标记步骤为运行中状态
+
+        Args:
+            key (str): 步骤的唯一标识符
+            detail (str): 步骤的详细信息（可选）
+        """
         self._update(key, status="running", detail=detail)
 
     def complete(self, key: str, detail: str = ""):
+        """
+        标记步骤为完成状态
+
+        Args:
+            key (str): 步骤的唯一标识符
+            detail (str): 步骤的详细信息（可选）
+        """
         self._update(key, status="done", detail=detail)
 
     def error(self, key: str, detail: str = ""):
+        """
+        标记步骤为错误状态
+
+        Args:
+            key (str): 步骤的唯一标识符
+            detail (str): 步骤的详细信息（可选）
+        """
         self._update(key, status="error", detail=detail)
 
     def skip(self, key: str, detail: str = ""):
+        """
+        标记步骤为跳过状态
+
+        Args:
+            key (str): 步骤的唯一标识符
+            detail (str): 步骤的详细信息（可选）
+        """
         self._update(key, status="skipped", detail=detail)
 
     def _update(self, key: str, status: str, detail: str):
+        """
+        更新步骤状态和详细信息
+
+        Args:
+            key (str): 步骤的唯一标识符
+            status (str): 新的状态（pending, running, done, error, skipped）
+            detail (str): 步骤的详细信息
+        """
         for s in self.steps:
             if s["key"] == key:
                 s["status"] = status
@@ -205,44 +298,54 @@ class StepTracker:
                 self._maybe_refresh()
                 return
 
+        # 如果步骤不存在，创建新步骤
         self.steps.append({"key": key, "label": key, "status": status, "detail": detail})
         self._maybe_refresh()
 
     def _maybe_refresh(self):
+        """触发UI刷新（如果设置了回调函数）"""
         if self._refresh_cb:
             try:
                 self._refresh_cb()
             except Exception:
+                # 忽略刷新异常，避免影响主流程
                 pass
 
     def render(self):
+        """
+        渲染步骤跟踪器为Rich Tree组件
+
+        Returns:
+            Tree: 格式化的Rich树形组件，显示所有步骤及其状态
+        """
         tree = Tree(f"[cyan]{self.title}[/cyan]", guide_style="grey50")
         for step in self.steps:
             label = step["label"]
             detail_text = step["detail"].strip() if step["detail"] else ""
 
             status = step["status"]
+            # 根据状态选择相应的符号和颜色
             if status == "done":
-                symbol = "[green]●[/green]"
+                symbol = "[green]●[/green]"      # 完成：实心圆点，绿色
             elif status == "pending":
-                symbol = "[green dim]○[/green dim]"
+                symbol = "[green dim]○[/green dim]"  # 待处理：空心圆点，暗绿色
             elif status == "running":
-                symbol = "[cyan]○[/cyan]"
+                symbol = "[cyan]○[/cyan]"        # 运行中：空心圆点，青色
             elif status == "error":
-                symbol = "[red]●[/red]"
+                symbol = "[red]●[/red]"          # 错误：实心圆点，红色
             elif status == "skipped":
-                symbol = "[yellow]○[/yellow]"
+                symbol = "[yellow]○[/yellow]"    # 跳过：空心圆点，黄色
             else:
-                symbol = " "
+                symbol = " "                       # 未知状态：空格
 
             if status == "pending":
-                # Entire line light gray (pending)
+                # 待处理状态：整行显示为暗灰色
                 if detail_text:
                     line = f"{symbol} [bright_black]{label} ({detail_text})[/bright_black]"
                 else:
                     line = f"{symbol} [bright_black]{label}[/bright_black]"
             else:
-                # Label white, detail (if any) light gray in parentheses
+                # 其他状态：标签白色，详细信息暗灰色
                 if detail_text:
                     line = f"{symbol} [white]{label}[/white] [bright_black]({detail_text})[/bright_black]"
                 else:
@@ -252,47 +355,67 @@ class StepTracker:
         return tree
 
 def get_key():
-    """Get a single keypress in a cross-platform way using readchar."""
+    """
+    跨平台方式获取单次按键输入
+
+    Returns:
+        str: 按键的标准化名称（'up', 'down', 'enter', 'escape'）或原始字符
+
+    Raises:
+        KeyboardInterrupt: 当按下Ctrl+C时触发
+    """
     key = readchar.readkey()
 
+    # 方向键映射（支持两种常见组合）
     if key == readchar.key.UP or key == readchar.key.CTRL_P:
         return 'up'
     if key == readchar.key.DOWN or key == readchar.key.CTRL_N:
         return 'down'
 
+    # 功能键映射
     if key == readchar.key.ENTER:
         return 'enter'
-
     if key == readchar.key.ESC:
         return 'escape'
 
+    # 中断处理
     if key == readchar.key.CTRL_C:
         raise KeyboardInterrupt
 
+    # 返回原始字符输入
     return key
 
 def select_with_arrows(options: dict, prompt_text: str = "Select an option", default_key: str = None) -> str:
     """
-    Interactive selection using arrow keys with Rich Live display.
-    
+    使用方向键进行交互式选择，采用Rich Live显示界面
+
     Args:
-        options: Dict with keys as option keys and values as descriptions
-        prompt_text: Text to show above the options
-        default_key: Default option key to start with
-        
+        options (dict): 选项字典，键为选项标识符，值为描述文本
+        prompt_text (str): 显示在选项上方的提示文本
+        default_key (str): 默认选中的选项键（可选）
+
     Returns:
-        Selected option key
+        str: 用户选择的选项键
+
+    Raises:
+        typer.Exit: 当用户取消选择时（按Esc或Ctrl+C）
     """
+    # 获取选项键列表并设置默认选中项
     option_keys = list(options.keys())
     if default_key and default_key in option_keys:
         selected_index = option_keys.index(default_key)
     else:
-        selected_index = 0
+        selected_index = 0  # 默认选中第一项
 
     selected_key = None
 
     def create_selection_panel():
-        """Create the selection panel with current selection highlighted."""
+        """
+        创建选择面板，高亮显示当前选中项
+
+        Returns:
+            Panel: Rich面板组件，包含选项列表和操作提示
+        """
         table = Table.grid(padding=(0, 2))
         table.add_column(style="cyan", justify="left", width=3)
         table.add_column(style="white", justify="left")
@@ -388,16 +511,33 @@ def callback(ctx: typer.Context):
         console.print()
 
 def run_command(cmd: list[str], check_return: bool = True, capture: bool = False, shell: bool = False) -> Optional[str]:
-    """Run a shell command and optionally capture output."""
+    """
+    执行Shell命令并可选择捕获输出
+
+    Args:
+        cmd (list[str]): 要执行的命令列表
+        check_return (bool): 是否检查返回码，为True时非零返回码会抛出异常
+        capture (bool): 是否捕获标准输出，为True时返回命令输出
+        shell (bool): 是否通过shell执行命令（谨慎使用）
+
+    Returns:
+        Optional[str]: 如果capture为True，返回命令的标准输出；否则返回None
+
+    Raises:
+        subprocess.CalledProcessError: 当check_return为True且命令返回非零退出码时
+    """
     try:
         if capture:
+            # 捕获输出的模式
             result = subprocess.run(cmd, check=check_return, capture_output=True, text=True, shell=shell)
             return result.stdout.strip()
         else:
+            # 直接执行模式，输出到终端
             subprocess.run(cmd, check=check_return, shell=shell)
             return None
     except subprocess.CalledProcessError as e:
         if check_return:
+            # 详细错误信息显示
             console.print(f"[red]Error running command:[/red] {' '.join(cmd)}")
             console.print(f"[red]Exit code:[/red] {e.returncode}")
             if hasattr(e, 'stderr') and e.stderr:
@@ -406,46 +546,58 @@ def run_command(cmd: list[str], check_return: bool = True, capture: bool = False
         return None
 
 def check_tool(tool: str, tracker: StepTracker = None) -> bool:
-    """Check if a tool is installed. Optionally update tracker.
-    
-    Args:
-        tool: Name of the tool to check
-        tracker: Optional StepTracker to update with results
-        
-    Returns:
-        True if tool is found, False otherwise
     """
-    # Special handling for Claude CLI after `claude migrate-installer`
-    # See: https://github.com/github/spec-kit/issues/123
-    # The migrate-installer command REMOVES the original executable from PATH
-    # and creates an alias at ~/.claude/local/claude instead
-    # This path should be prioritized over other claude executables in PATH
+    检查工具是否已安装，可选择更新步骤跟踪器
+
+    Args:
+        tool (str): 要检查的工具名称
+        tracker (StepTracker, optional): 用于更新检查结果的步骤跟踪器
+
+    Returns:
+        bool: 如果找到工具返回True，否则返回False
+
+    Note:
+        对Claude CLI有特殊处理，因为migrate-installer命令会从PATH中移除原始可执行文件，
+        并在~/.claude/local/claude创建别名。这个路径应该优先于PATH中的其他claude可执行文件。
+        参考: https://github.com/github/spec-kit/issues/123
+    """
+    # Claude CLI特殊处理：检查本地路径
     if tool == "claude":
         if CLAUDE_LOCAL_PATH.exists() and CLAUDE_LOCAL_PATH.is_file():
             if tracker:
                 tracker.complete(tool, "available")
             return True
-    
+
+    # 标准工具检查：使用shutil.which在PATH中查找
     found = shutil.which(tool) is not None
-    
+
+    # 更新跟踪器状态
     if tracker:
         if found:
             tracker.complete(tool, "available")
         else:
             tracker.error(tool, "not found")
-    
+
     return found
 
 def is_git_repo(path: Path = None) -> bool:
-    """Check if the specified path is inside a git repository."""
+    """
+    检查指定路径是否在Git仓库内
+
+    Args:
+        path (Path, optional): 要检查的路径，默认为当前工作目录
+
+    Returns:
+        bool: 如果路径在Git仓库内返回True，否则返回False
+    """
     if path is None:
-        path = Path.cwd()
-    
+        path = Path.cwd()  # 默认检查当前工作目录
+
     if not path.is_dir():
-        return False
+        return False  # 非目录路径直接返回False
 
     try:
-        # Use git command to check if inside a work tree
+        # 使用git命令检查是否在工作树内
         subprocess.run(
             ["git", "rev-parse", "--is-inside-work-tree"],
             check=True,
@@ -457,38 +609,54 @@ def is_git_repo(path: Path = None) -> bool:
         return False
 
 def init_git_repo(project_path: Path, quiet: bool = False) -> Tuple[bool, Optional[str]]:
-    """Initialize a git repository in the specified path.
-    
+    """
+    在指定路径初始化Git仓库
+
     Args:
-        project_path: Path to initialize git repository in
-        quiet: if True suppress console output (tracker handles status)
-    
+        project_path (Path): 要初始化Git仓库的路径
+        quiet (bool): 如果为True，抑制控制台输出（由跟踪器处理状态）
+
     Returns:
-        Tuple of (success: bool, error_message: Optional[str])
+        Tuple[bool, Optional[str]]: (成功标志, 错误信息)，成功时错误信息为None
+
+    执行步骤：
+        1. 切换到项目目录
+        2. 运行git init初始化仓库
+        3. 添加所有文件到暂存区
+        4. 创建初始提交
+        5. 恢复原始工作目录
     """
     try:
         original_cwd = Path.cwd()
         os.chdir(project_path)
+
         if not quiet:
             console.print("[cyan]Initializing git repository...[/cyan]")
+
+        # 初始化Git仓库
         subprocess.run(["git", "init"], check=True, capture_output=True, text=True)
+        # 添加所有文件到暂存区
         subprocess.run(["git", "add", "."], check=True, capture_output=True, text=True)
+        # 创建初始提交
         subprocess.run(["git", "commit", "-m", "Initial commit from Specify template"], check=True, capture_output=True, text=True)
+
         if not quiet:
             console.print("[green]✓[/green] Git repository initialized")
         return True, None
 
     except subprocess.CalledProcessError as e:
+        # 构建详细错误信息
         error_msg = f"Command: {' '.join(e.cmd)}\nExit code: {e.returncode}"
         if e.stderr:
             error_msg += f"\nError: {e.stderr.strip()}"
         elif e.stdout:
             error_msg += f"\nOutput: {e.stdout.strip()}"
-        
+
         if not quiet:
             console.print(f"[red]Error initializing git repository:[/red] {e}")
         return False, error_msg
     finally:
+        # 确保总是恢复原始工作目录
         os.chdir(original_cwd)
 
 def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker=None) -> None:

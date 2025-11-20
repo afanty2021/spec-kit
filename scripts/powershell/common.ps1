@@ -1,47 +1,68 @@
 #!/usr/bin/env pwsh
-# Common PowerShell functions analogous to common.sh
+# 公共PowerShell函数库 - 与common.sh功能相对应
 
 function Get-RepoRoot {
+    <#
+    .SYNOPSIS
+        获取仓库根目录路径，支持非Git仓库的回退机制
+
+    .DESCRIPTION
+        首先尝试使用Git命令获取仓库根目录，如果失败则使用脚本位置推断根目录
+
+    .OUTPUTS
+        System.String - 仓库根目录的绝对路径
+    #>
     try {
         $result = git rev-parse --show-toplevel 2>$null
         if ($LASTEXITCODE -eq 0) {
-            return $result
+            return $result  # Git仓库根目录
         }
     } catch {
-        # Git command failed
+        # Git命令执行失败，继续执行回退逻辑
     }
-    
-    # Fall back to script location for non-git repos
+
+    # 非Git仓库的回退方案：使用脚本位置推断根目录
     return (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 }
 
 function Get-CurrentBranch {
-    # First check if SPECIFY_FEATURE environment variable is set
+    <#
+    .SYNOPSIS
+        获取当前分支名称，支持非Git仓库的回退机制
+
+    .DESCRIPTION
+        优先级顺序：SPECIFY_FEATURE环境变量 > Git分支名 > 最新功能目录 > main分支
+
+    .OUTPUTS
+        System.String - 当前分支名称
+    #>
+    # 首先检查SPECIFY_FEATURE环境变量是否已设置
     if ($env:SPECIFY_FEATURE) {
         return $env:SPECIFY_FEATURE
     }
-    
-    # Then check git if available
+
+    # 然后检查Git是否可用
     try {
         $result = git rev-parse --abbrev-ref HEAD 2>$null
         if ($LASTEXITCODE -eq 0) {
-            return $result
+            return $result  # Git当前分支名
         }
     } catch {
-        # Git command failed
+        # Git命令执行失败，继续执行回退逻辑
     }
-    
-    # For non-git repos, try to find the latest feature directory
+
+    # 非Git仓库：尝试找到最新的功能目录
     $repoRoot = Get-RepoRoot
     $specsDir = Join-Path $repoRoot "specs"
-    
+
     if (Test-Path $specsDir) {
         $latestFeature = ""
         $highest = 0
-        
+
+        # 遍历specs目录，找到编号最高的功能
         Get-ChildItem -Path $specsDir -Directory | ForEach-Object {
             if ($_.Name -match '^(\d{3})-') {
-                $num = [int]$matches[1]
+                $num = [int]$matches[1]  # 强制转换为整数
                 if ($num -gt $highest) {
                     $highest = $num
                     $latestFeature = $_.Name

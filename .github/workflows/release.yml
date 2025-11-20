@@ -1,32 +1,42 @@
+# 创建发布 - 自动化发布工作流
 name: Create Release
 
+# 触发条件：
+# 1. 主分支推送且关键路径变更
+# 2. 手动触发（workflow_dispatch）
 on:
   push:
     branches: [ main ]
     paths:
-      - 'memory/**'
-      - 'scripts/**'
-      - 'templates/**'
-      - '.github/workflows/**'
-  workflow_dispatch:
+      - 'memory/**'           # 项目原则变更
+      - 'scripts/**'          # 自动化脚本变更
+      - 'templates/**'        # 模板系统变更
+      - '.github/workflows/**' # 工作流自身变更
+  workflow_dispatch:         # 支持手动触发
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest    # 使用Ubuntu最新版本作为运行环境
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write         # 仓库内容写入权限（创建发布、标签）
+      pull-requests: write    # PR操作权限（发布需要）
+
     steps:
+      # 检出代码仓库
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0                     # 完整克隆历史，用于版本计算
+          token: ${{ secrets.GITHUB_TOKEN }} # 使用GITHUB_TOKEN访问仓库
+
+      # 获取最新版本标签
       - name: Get latest tag
         id: get_tag
         run: |
           chmod +x .github/workflows/scripts/get-next-version.sh
           .github/workflows/scripts/get-next-version.sh
+
+      # 检查发布是否已存在（避免重复发布）
       - name: Check if release already exists
         id: check_release
         run: |
@@ -34,24 +44,31 @@ jobs:
           .github/workflows/scripts/check-release-exists.sh ${{ steps.get_tag.outputs.new_version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 创建发布包变体（为14种AI代理生成专用包）
       - name: Create release package variants
-        if: steps.check_release.outputs.exists == 'false'
+        if: steps.check_release.outputs.exists == 'false'  # 仅在发布不存在时执行
         run: |
           chmod +x .github/workflows/scripts/create-release-packages.sh
           .github/workflows/scripts/create-release-packages.sh ${{ steps.get_tag.outputs.new_version }}
+
+      # 生成发布说明（基于Git历史）
       - name: Generate release notes
         if: steps.check_release.outputs.exists == 'false'
         id: release_notes
         run: |
           chmod +x .github/workflows/scripts/generate-release-notes.sh
           .github/workflows/scripts/generate-release-notes.sh ${{ steps.get_tag.outputs.new_version }} ${{ steps.get_tag.outputs.latest_tag }}
+
+      # 创建GitHub Release并上传资产
       - name: Create GitHub Release
         if: steps.check_release.outputs.exists == 'false'
         run: |
           chmod +x .github/workflows/scripts/create-github-release.sh
           .github/workflows/scripts/create-github-release.sh ${{ steps.get_tag.outputs.new_version }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 使用GitHub Token创建发布
+
+      # 更新pyproject.toml中的版本号（仅用于发布构件）
       - name: Update version in pyproject.toml (for release artifacts only)
         if: steps.check_release.outputs.exists == 'false'
         run: |
