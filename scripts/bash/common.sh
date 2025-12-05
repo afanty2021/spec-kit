@@ -7,8 +7,8 @@ get_repo_root() {
         # 如果在Git仓库中，返回Git根目录
         git rev-parse --show-toplevel
     else
-        # 非Git仓库的回退方案：使用脚本位置推断根目录
-        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      # 非Git仓库的回退方案：使用脚本位置推断根目录
+        local script_dir="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
         (cd "$script_dir/../../.." && pwd)
     fi
 }

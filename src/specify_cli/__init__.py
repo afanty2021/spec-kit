@@ -53,6 +53,7 @@ from typer.core import TyperGroup  # Typer的组类，用于命令分组
 import readchar  # 读取单个字符输入，支持跨平台键盘事件
 import ssl       # SSL/TLS支持，用于安全网络连接
 import truststore  # 信任存储库，用于系统证书验证
+from datetime import datetime, timezone
 
 # 创建SSL上下文，使用系统信任存储进行HTTPS请求验证
 ssl_context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -83,6 +84,63 @@ def _github_auth_headers(cli_token: str | None = None) -> dict:
     """
     token = _github_token(cli_token)
     return {"Authorization": f"Bearer {token}"} if token else {}
+
+def _parse_rate_limit_headers(headers: httpx.Headers) -> dict:
+    """提取并解析GitHub速率限制头部信息"""
+    info = {}
+
+    # 标准GitHub速率限制头部
+    if "X-RateLimit-Limit" in headers:
+        info["limit"] = headers.get("X-RateLimit-Limit")
+    if "X-RateLimit-Remaining" in headers:
+        info["remaining"] = headers.get("X-RateLimit-Remaining")
+    if "X-RateLimit-Reset" in headers:
+        reset_epoch = int(headers.get("X-RateLimit-Reset", "0"))
+        if reset_epoch:
+            reset_time = datetime.fromtimestamp(reset_epoch, tz=timezone.utc)
+            info["reset_epoch"] = reset_epoch
+            info["reset_time"] = reset_time
+            info["reset_local"] = reset_time.astimezone()
+
+    # Retry-After头部（秒数或HTTP-date格式）
+    if "Retry-After" in headers:
+        retry_after = headers.get("Retry-After")
+        try:
+            info["retry_after_seconds"] = int(retry_after)
+        except ValueError:
+            # HTTP-date格式 - 暂未实现，仅存储为字符串
+            info["retry_after"] = retry_after
+
+    return info
+
+def _format_rate_limit_error(status_code: int, headers: httpx.Headers, url: str) -> str:
+    """格式化用户友好的速率限制错误信息"""
+    rate_info = _parse_rate_limit_headers(headers)
+
+    lines = [f"GitHub API返回状态码 {status_code} 对于 {url}"]
+    lines.append("")
+
+    if rate_info:
+        lines.append("[bold]速率限制信息:[/bold]")
+        if "limit" in rate_info:
+            lines.append(f"  • 速率限制: {rate_info['limit']} 请求/小时")
+        if "remaining" in rate_info:
+            lines.append(f"  • 剩余请求: {rate_info['remaining']}")
+        if "reset_local" in rate_info:
+            reset_str = rate_info["reset_local"].strftime("%Y-%m-%d %H:%M:%S %Z")
+            lines.append(f"  • 重置时间: {reset_str}")
+        if "retry_after_seconds" in rate_info:
+            lines.append(f"  • 重试等待: {rate_info['retry_after_seconds']} 秒")
+        lines.append("")
+
+    # 添加故障排除指导
+    lines.append("[bold]故障排除提示:[/bold]")
+    lines.append("  • 如果您在共享CI或企业环境中，可能会受到速率限制。")
+    lines.append("  • 考虑通过 --github-token 或 GH_TOKEN/GITHUB_TOKEN")
+    lines.append("    环境变量使用GitHub令牌以提高速率限制。")
+    lines.append("  • 认证请求的限制为5,000/小时，而未认证请求为60/小时。")
+
+    return "\n".join(lines)
 
 # AI代理配置：包含名称、文件夹、安装URL和CLI工具要求
 # 每个代理都包含以下字段：
@@ -157,6 +215,12 @@ AGENT_CONFIG = {
         "install_url": "https://www.codebuddy.ai/cli",
         "requires_cli": True,
     },
+    "qoder": {
+        "name": "Qoder CLI",
+        "folder": ".qoder/",
+        "install_url": "https://qoder.com/cli",
+        "requires_cli": True,
+    },
     "roo": {
         "name": "Roo Code",
         "folder": ".roo/",
@@ -174,6 +238,18 @@ AGENT_CONFIG = {
         "folder": ".agents/",
         "install_url": "https://ampcode.com/manual#install",
         "requires_cli": True,
+    },
+    "shai": {
+        "name": "SHAI",
+        "folder": ".shai/",
+        "install_url": "https://github.com/ovh/shai",
+        "requires_cli": True,
+    },
+    "bob": {
+        "name": "IBM Bob",
+        "folder": ".bob/",
+        "install_url": None,  # IDE-based
+        "requires_cli": False,
     },
 }
 
@@ -745,10 +821,11 @@ def download_template_from_github(ai_assistant: str, download_dir: Path, *, scri
         )
         status = response.status_code
         if status != 200:
-            msg = f"GitHub API returned {status} for {api_url}"
+            # Format detailed error message with rate-limit info
+            error_msg = _format_rate_limit_error(status, response.headers, api_url)
             if debug:
-                msg += f"\nResponse headers: {response.headers}\nBody (truncated 500): {response.text[:500]}"
-            raise RuntimeError(msg)
+                error_msg += f"\n\n[dim]Response body (truncated 500):[/dim]\n{response.text[:500]}"
+            raise RuntimeError(error_msg)
         try:
             release_data = response.json()
         except ValueError as je:
@@ -795,8 +872,11 @@ def download_template_from_github(ai_assistant: str, download_dir: Path, *, scri
             headers=_github_auth_headers(github_token),
         ) as response:
             if response.status_code != 200:
-                body_sample = response.text[:400]
-                raise RuntimeError(f"Download failed with {response.status_code}\nHeaders: {response.headers}\nBody (truncated): {body_sample}")
+                # Handle rate-limiting on download as well
+                error_msg = _format_rate_limit_error(response.status_code, response.headers, download_url)
+                if debug:
+                    error_msg += f"\n\n[dim]Response body (truncated 400):[/dim]\n{response.text[:400]}"
+                raise RuntimeError(error_msg)
             total_size = int(response.headers.get('content-length', 0))
             with open(zip_path, 'wb') as f:
                 if total_size == 0:
@@ -1033,7 +1113,7 @@ def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = 
 @app.command()
 def init(
     project_name: str = typer.Argument(None, help="Name for your new project directory (optional if using --here, or use '.' for current directory)"),
-    ai_assistant: str = typer.Option(None, "--ai", help="AI assistant to use: claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, kilocode, auggie, codebuddy, amp, or q"),
+    ai_assistant: str = typer.Option(None, "--ai", help="AI assistant to use: claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, kilocode, auggie, codebuddy, amp, shai, q, bob, or qoder "),
     script_type: str = typer.Option(None, "--script", help="Script type to use: sh or ps"),
     ignore_agent_tools: bool = typer.Option(False, "--ignore-agent-tools", help="Skip checks for AI agent tools like Claude Code"),
     no_git: bool = typer.Option(False, "--no-git", help="Skip git repository initialization"),
@@ -1369,6 +1449,85 @@ def check():
 
     if not any(agent_results.values()):
         console.print("[dim]Tip: Install an AI assistant for the best experience[/dim]")
+
+@app.command()
+def version():
+    """Display version and system information."""
+    import platform
+    import importlib.metadata
+    
+    show_banner()
+    
+    # Get CLI version from package metadata
+    cli_version = "unknown"
+    try:
+        cli_version = importlib.metadata.version("specify-cli")
+    except Exception:
+        # Fallback: try reading from pyproject.toml if running from source
+        try:
+            import tomllib
+            pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
+            if pyproject_path.exists():
+                with open(pyproject_path, "rb") as f:
+                    data = tomllib.load(f)
+                    cli_version = data.get("project", {}).get("version", "unknown")
+        except Exception:
+            pass
+    
+    # Fetch latest template release version
+    repo_owner = "github"
+    repo_name = "spec-kit"
+    api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases/latest"
+    
+    template_version = "unknown"
+    release_date = "unknown"
+    
+    try:
+        response = client.get(
+            api_url,
+            timeout=10,
+            follow_redirects=True,
+            headers=_github_auth_headers(),
+        )
+        if response.status_code == 200:
+            release_data = response.json()
+            template_version = release_data.get("tag_name", "unknown")
+            # Remove 'v' prefix if present
+            if template_version.startswith("v"):
+                template_version = template_version[1:]
+            release_date = release_data.get("published_at", "unknown")
+            if release_date != "unknown":
+                # Format the date nicely
+                try:
+                    dt = datetime.fromisoformat(release_date.replace('Z', '+00:00'))
+                    release_date = dt.strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    info_table = Table(show_header=False, box=None, padding=(0, 2))
+    info_table.add_column("Key", style="cyan", justify="right")
+    info_table.add_column("Value", style="white")
+
+    info_table.add_row("CLI Version", cli_version)
+    info_table.add_row("Template Version", template_version)
+    info_table.add_row("Released", release_date)
+    info_table.add_row("", "")
+    info_table.add_row("Python", platform.python_version())
+    info_table.add_row("Platform", platform.system())
+    info_table.add_row("Architecture", platform.machine())
+    info_table.add_row("OS Version", platform.version())
+
+    panel = Panel(
+        info_table,
+        title="[bold cyan]Specify CLI Information[/bold cyan]",
+        border_style="cyan",
+        padding=(1, 2)
+    )
+
+    console.print(panel)
+    console.print()
 
 def main():
     app()
